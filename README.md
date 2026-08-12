@@ -17,6 +17,10 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/C666249/To-Do/releases/latest/download/To-Do-v1.19.1.apk"><b>⬇️ 下载 Android APK · v1.19.1</b></a>
+</p>
+
+<p align="center">
   <a href="README_EN.md">English</a> ·
   <a href="#-截图与演示">截图</a> ·
   <a href="#-主要功能">功能</a> ·
@@ -130,6 +134,8 @@ Android 原生层使用 `AlarmManager + Foreground Service + WindowManager Overl
 ## 📥 下载与安装
 
 推荐从仓库的 [**Releases** 页面](https://github.com/C666249/To-Do/releases/latest) 下载最新 APK。
+
+也可以直接下载：[**To-Do-v1.19.1.apk**](https://github.com/C666249/To-Do/releases/latest/download/To-Do-v1.19.1.apk)
 
 如果你从源码构建：
 

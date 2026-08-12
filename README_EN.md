@@ -13,6 +13,10 @@
   <img src="docs/assets/hero.png" width="100%" alt="To-Do feature preview" />
 </p>
 
+<p align="center">
+  <a href="https://github.com/C666249/To-Do/releases/latest/download/To-Do-v1.19.1.apk"><b>⬇️ Download Android APK · v1.19.1</b></a>
+</p>
+
 ## Overview
 
 To-Do is a lightweight personal productivity project that keeps **normal tasks, long-term notes, and repeat-every-day items** in one place.
@@ -67,6 +71,8 @@ build-apk.bat
 ```
 
 Download the latest APK from [GitHub Releases](https://github.com/C666249/To-Do/releases/latest).
+
+Direct download: [**To-Do-v1.19.1.apk**](https://github.com/C666249/To-Do/releases/latest/download/To-Do-v1.19.1.apk)
 
 ## Privacy
 
