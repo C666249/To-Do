@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="#1a1a2e"/>
+  <g stroke="url(#grad)" stroke-width="16" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="128" y="64" width="320" height="392" rx="16"/>
+    <line x1="128" y1="192" x2="448" y2="192"/>
+    <line x1="128" y1="256" x2="448" y2="256"/>
+    <line x1="256" y1="64" x2="256" y2="192"/>
+    <rect x="256" y="192" width="192" height="128" rx="16"/>
+    <circle cx="352" cy="256" r="24"/>
+    <path d="M64 64 Q128 64 128 128 Q128 192 64 192 Q128 192 128 256 Q128 320 64 320 Q128 320 128 384 Q128 448 64 448"/>
+  </g>
+  <g stroke="url(#grad)" stroke-width="8" fill="none">
+    <circle cx="80" cy="128" r="12"/>
+    <circle cx="80" cy="192" r="12"/>
+    <circle cx="80" cy="256" r="12"/>
+    <circle cx="80" cy="320" r="12"/>
+    <circle cx="80" cy="384" r="12"/>
+  </g>
+  <g stroke="url(#grad)" stroke-width="8" fill="none">
+    <polygon points="400,48 432,80 400,112"/>
+    <circle cx="448" cy="400" r="16"/>
+    <polygon points="48,80 64,96 48,112 32,96"/>
+    <rect x="48" y="384" width="32" height="32" transform="rotate(45 64 400)"/>
+  </g>
+</svg>

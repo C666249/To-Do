@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>AI Chat Panel Tests</title>
+<style>
+  body { font-family: monospace; padding: 20px; background: #f5ecd8; }
+  .pass { color: #2EC4B6; } .fail { color: #ff6b6b; }
+  .result { margin: 4px 0; padding: 4px 8px; border-radius: 4px; }
+  .result.pass { background: #e8f5e9; } .result.fail { background: #ffebee; }
+  h2 { margin-top: 24px; }
+</style>
+</head>
+<body>
+<h1>AI Chat Panel Tests</h1>
+<div id="results"></div>
+
+<!-- Replicate the exact DOM structure from todo.html -->
+<button class="fab fab--recycle" id="fabRecycle" aria-label="回收站">🗑️</button>
+<button class="fab fab--ai" id="fabAi" aria-label="AI助手">🤖</button>
+<button class="fab" id="fab" aria-label="添加待办">+</button>
+<div class="toast" id="toast"></div>
+
+<div class="ai-chat-modal" id="aiChatModal">
+  <div class="ai-chat-modal__backdrop" id="aiChatBackdrop"></div>
+  <div class="ai-chat-modal__content">
+    <div class="ai-chat__header">
+      <span class="ai-chat__title">🤖 AI 助手</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="ai-chat__provider" id="aiProviderBtn" title="切换模型">Agnes</button>
+        <button class="ai-chat__close" id="aiChatClose">✕</button>
+      </div>
+    </div>
+    <div class="ai-chat__suggestions" id="aiChatSuggestions">
+      <button class="ai-chat__chip" data-msg="添加待办">➕ 添加待办</button>
+      <button class="ai-chat__chip" data-msg="查看今天的任务">📋 今天任务</button>
+      <button class="ai-chat__chip" data-msg="删除已完成的待办">🗑️ 清理完成</button>
+    </div>
+    <div class="ai-chat__messages" id="aiChatMessages">
+      <div style="text-align:center;color:#b0a090;font-size:13px;padding:20px 0">告诉我你想要做什么，我来帮你操作 🤖</div>
+    </div>
+    <div class="ai-chat__input-row">
+      <input type="text" class="ai-chat__input" id="aiChatInput" placeholder="例如：加一条刑法的复习刑法第三章…" autocomplete="off">
+      <button class="ai-chat__send" id="aiChatSend" aria-label="发送">➤</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== Copy of production functions from todo.html =====
+function openAiChat() {
+  document.getElementById('aiChatModal').classList.add('active');
+  document.getElementById('aiChatInput').focus();
+}
+
+function closeAiChat() {
+  document.getElementById('aiChatModal').classList.remove('active');
+}
+
+function escapeHtml(s) {
+  var d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function addAiMessage(role, text) {
+  var msgs = document.getElementById('aiChatMessages');
+  var hint = msgs.querySelector('div[style*="text-align:center"]');
+  if (hint) hint.remove();
+
+  var el = document.createElement('div');
+  el.className = 'ai-chat__msg ai-chat__msg--' + (role === 'user' ? 'user' : 'ai');
+  el.innerHTML = '<div class="ai-chat__bubble">' + escapeHtml(text) + '</div>';
+  msgs.appendChild(el);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function showAiLoading() {
+  var msgs = document.getElementById('aiChatMessages');
+  var hint = msgs.querySelector('div[style*="text-align:center"]');
+  if (hint) hint.remove();
+
+  var el = document.createElement('div');
+  el.className = 'ai-chat__loading';
+  el.innerHTML = '<span></span><span></span><span></span>';
+  msgs.appendChild(el);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function hideAiLoading() {
+  var loader = document.querySelector('#aiChatMessages .ai-chat__loading');
+  if (loader) loader.remove();
+}
+
+function sendAiInput() {
+  var input = document.getElementById('aiChatInput');
+  var text = input.value.trim();
+  if (!text) return;
+  addAiMessage('user', text);
+  input.value = '';
+}
+
+// Event listeners (same bindings as production)
+document.getElementById('fabAi').addEventListener('click', openAiChat);
+document.getElementById('aiChatBackdrop').addEventListener('click', closeAiChat);
+document.getElementById('aiChatClose').addEventListener('click', closeAiChat);
+document.getElementById('aiChatSend').addEventListener('click', sendAiInput);
+document.getElementById('aiChatInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') sendAiInput();
+});
+document.getElementById('aiChatSuggestions').addEventListener('click', function(e) {
+  var chip = e.target.closest('.ai-chat__chip');
+  if (!chip) return;
+  var msg = chip.dataset.msg;
+  document.getElementById('aiChatInput').value = msg;
+  sendAiInput();
+});
+
+// ===== TEST RUNNER =====
+var results = document.getElementById('results');
+var passed = 0, failed = 0;
+
+function assert(cond, msg) {
+  var el = document.createElement('div');
+  if (cond) {
+    el.className = 'result pass';
+    el.textContent = '✓ PASS: ' + msg;
+    passed++;
+  } else {
+    el.className = 'result fail';
+    el.textContent = '✗ FAIL: ' + msg;
+    failed++;
+  }
+  results.appendChild(el);
+}
+
+// TEST 1: AI FAB button
+assert(document.querySelector('#fabAi') !== null, 'AI FAB #fabAi exists');
+assert(document.querySelector('#fabAi').classList.contains('fab--ai'), 'AI FAB has .fab--ai class');
+assert(document.querySelector('#fabAi').textContent.includes('🤖'), 'AI FAB shows robot emoji');
+
+// TEST 2: AI chat modal structure
+var modal = document.querySelector('#aiChatModal');
+assert(modal !== null, '#aiChatModal exists');
+assert(modal.querySelector('.ai-chat__backdrop') !== null, 'Modal has backdrop');
+assert(modal.querySelector('.ai-chat__header') !== null, 'Modal has header');
+assert(modal.querySelector('#aiChatMessages') !== null, 'Modal has messages container');
+assert(modal.querySelector('#aiChatInput') !== null, 'Modal has input');
+assert(modal.querySelector('#aiChatSend') !== null, 'Modal has send button');
+
+// TEST 3: openAiChat / closeAiChat
+assert(typeof openAiChat === 'function', 'openAiChat is a function');
+assert(typeof closeAiChat === 'function', 'closeAiChat is a function');
+assert(!modal.classList.contains('active'), 'Modal starts hidden');
+openAiChat();
+assert(modal.classList.contains('active'), 'openAiChat() shows modal');
+closeAiChat();
+assert(!modal.classList.contains('active'), 'closeAiChat() hides modal');
+// Backdrop click
+openAiChat();
+modal.querySelector('.ai-chat__backdrop').click();
+assert(!modal.classList.contains('active'), 'Backdrop click closes modal');
+
+// TEST 4: addAiMessage
+var msgs = document.getElementById('aiChatMessages');
+msgs.innerHTML = '';
+addAiMessage('user', '添加一条待办');
+var userMsg = msgs.querySelector('.ai-chat__msg--user');
+assert(userMsg !== null, 'addAiMessage("user", ...) creates user bubble');
+assert(userMsg.textContent.indexOf('添加一条待办') !== -1, 'User bubble shows correct text');
+addAiMessage('ai', '好的，已添加');
+var aiMsg = msgs.querySelector('.ai-chat__msg--ai');
+assert(aiMsg !== null, 'addAiMessage("ai", ...) creates AI bubble');
+assert(aiMsg.textContent.indexOf('好的，已添加') !== -1, 'AI bubble shows correct text');
+
+// TEST 5: Enter key sends message
+msgs.innerHTML = '';
+var input = document.getElementById('aiChatInput');
+input.value = '测试消息';
+input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+assert(msgs.querySelectorAll('.ai-chat__msg--user').length > 0, 'Enter sends user message');
+assert(input.value === '', 'Input cleared after send');
+
+// TEST 6: Loading indicator
+msgs.innerHTML = '';
+showAiLoading();
+assert(msgs.querySelector('.ai-chat__loading') !== null, 'showAiLoading() adds loader');
+hideAiLoading();
+assert(msgs.querySelector('.ai-chat__loading') === null, 'hideAiLoading() removes loader');
+
+// TEST 7: Suggestion chips
+var chip = document.querySelector('.ai-chat__chip[data-msg="添加待办"]');
+assert(chip !== null, 'Suggestion chips exist');
+msgs.innerHTML = '';
+chip.click();
+var chipMsgs = msgs.querySelectorAll('.ai-chat__msg--user');
+assert(chipMsgs.length > 0, 'Chip click sends message');
+assert(chipMsgs[0].textContent.indexOf('添加待办') !== -1, 'Chip sends correct message text');
+
+// Summary
+var summary = document.createElement('h2');
+summary.textContent = (passed + failed) + ' tests: ' + passed + ' passed, ' + failed + ' failed';
+summary.style.cssText = failed > 0 ? 'color: #ff6b6b' : 'color: #2EC4B6';
+results.appendChild(summary);
+</script>
+</body>
+</html>

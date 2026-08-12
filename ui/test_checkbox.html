@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>To-Do Checkbox Test</title>
+<style>
+  .pass { color: green; }
+  .fail { color: red; }
+</style>
+</head>
+<body>
+<h1>To-Do Checkbox / Stats Test</h1>
+<div id="results"></div>
+
+<!-- Simulated DOM -->
+<div id="list">
+  <div class="todo-item" data-id="1">
+    <div class="todo-item__inner">
+      <div class="checkbox"></div>
+      <div class="todo-item__content">
+        <div class="todo-item__text">
+          <span class="todo-item__status todo-item__status--todo"></span>Buy milk
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="header__stats">0<span>/1</span></div>
+
+<script>
+const results = document.getElementById('results');
+const todoListEl = document.getElementById('list');
+let passed = 0, failed = 0;
+
+function assert(condition, msg) {
+  const el = document.createElement('div');
+  if (condition) {
+    el.className = 'pass';
+    el.textContent = '✅ PASS: ' + msg;
+    passed++;
+  } else {
+    el.className = 'fail';
+    el.textContent = '❌ FAIL: ' + msg;
+    failed++;
+  }
+  results.appendChild(el);
+}
+
+// --- Tests start ---
+
+// Test 1: refreshTodoItemDOM should exist as a function
+assert(typeof refreshTodoItemDOM === 'function', 'refreshTodoItemDOM is a function');
+
+// Test 2: updateStats should exist as a function
+assert(typeof updateStats === 'function', 'updateStats is a function');
+
+// Test 3: refreshTodoItemDOM updates checkbox to in-progress
+(function() {
+  const el = document.querySelector('[data-id="1"]');
+  const todo = { id: 1, text: 'Buy milk', status: 'in-progress' };
+  refreshTodoItemDOM(el, todo);
+  const cb = el.querySelector('.checkbox');
+  assert(cb.classList.contains('in-progress'), 'Checkbox gets "in-progress" class');
+  assert(!cb.classList.contains('checked'), 'Checkbox does NOT have "checked" class when in-progress');
+})();
+
+// Test 4: refreshTodoItemDOM updates item class
+(function() {
+  const el = document.querySelector('[data-id="1"]');
+  assert(el.classList.contains('in-progress'), 'Item gets "in-progress" class');
+})();
+
+// Test 5: refreshTodoItemDOM updates status dot
+(function() {
+  const el = document.querySelector('[data-id="1"]');
+  const dot = el.querySelector('.todo-item__status');
+  assert(dot.classList.contains('todo-item__status--in-progress'), 'Status dot gets --in-progress class');
+})();
+
+// Test 6: toggleTodo should NOT call render (tested via presence of element after toggle)
+// We test that the element is still in DOM after toggle (no innerHTML clear)
+(function() {
+  const elBefore = document.querySelector('[data-id="1"]');
+  assert(elBefore !== null, 'Element exists before simulated toggle');
+  // Simulate what toggleTodo does without render
+  refreshTodoItemDOM(elBefore, { id: 1, text: 'Buy milk', status: 'completed' });
+  const cb = elBefore.querySelector('.checkbox');
+  assert(cb.classList.contains('checked'), 'Checkbox gets "checked" class');
+  assert(elBefore.classList.contains('completed'), 'Item gets "completed" class');
+})();
+
+// Test 7: updateStats updates header
+(function() {
+  // Simulate todos array
+  window.todos = [
+    { id: 1, text: 'Buy milk', status: 'completed' },
+    { id: 2, text: 'Walk dog', status: 'todo' },
+  ];
+  updateStats();
+  const statsEl = document.querySelector('.header__stats');
+  assert(statsEl.innerHTML === '1<span>/2</span>', 'Stats show "1/2" after updateStats()');
+})();
+
+// --- Summary ---
+const summary = document.createElement('h2');
+summary.textContent = `${passed}/${passed + failed} tests passed`;
+summary.style.color = failed === 0 ? 'green' : 'red';
+results.appendChild(summary);
+</script>
+</body>
+</html>

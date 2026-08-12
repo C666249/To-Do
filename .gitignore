@@ -1,0 +1,39 @@
+# Android / Gradle
+.gradle/
+**/build/
+build/
+local.properties
+
+# Android Studio / IntelliJ
+.idea/
+*.iml
+
+# APK / bundles / signing
+*.apk
+*.aab
+*.apks
+*.jks
+*.keystore
+*.p12
+*.pem
+*.der
+*.mobileprovision
+
+# Local output / logs
+/dist/*
+!/dist/.gitkeep
+*.log
+*.tmp
+*.bak
+.DS_Store
+Thumbs.db
+
+# Local secrets / environment files
+.env
+.env.*
+!.env.example
+secrets.properties
+keystore.properties
+
+# Native/user-local note images created at runtime should never be committed
+note_images/

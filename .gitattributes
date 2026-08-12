@@ -1,0 +1,14 @@
+* text=auto
+
+gradlew text eol=lf
+*.bat text eol=crlf
+*.kt text eol=lf
+*.kts text eol=lf
+*.md text eol=lf
+*.html text eol=lf
+
+*.gif binary
+*.jpg binary
+*.png binary
+*.jar binary
+*.mp4 binary

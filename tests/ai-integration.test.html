@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>AI Integration Tests (Phase 2)</title>
+<style>
+  body { font-family: monospace; padding: 20px; background: #f5ecd8; }
+  .pass { color: #2EC4B6; } .fail { color: #ff6b6b; }
+  .result { margin: 4px 0; padding: 4px 8px; border-radius: 4px; }
+  .result.pass { background: #e8f5e9; } .result.fail { background: #ffebee; }
+  h2 { margin-top: 24px; }
+</style>
+</head>
+<body>
+<h1>AI Integration Tests (Phase 2)</h1>
+<div id="results"></div>
+
+<script>
+// ===== Test infra =====
+var results = document.getElementById('results');
+var passed = 0, failed = 0;
+function assert(cond, msg) {
+  var el = document.createElement('div');
+  if (cond) { el.className = 'result pass'; el.textContent = '✓ PASS: ' + msg; passed++; }
+  else { el.className = 'result fail'; el.textContent = '✗ FAIL: ' + msg; failed++; }
+  results.appendChild(el);
+}
+
+// ===== Stub localStorage =====
+var _store = {};
+var _lsProxy = {
+  getItem: function(k) { return _store.hasOwnProperty(k) ? _store[k] : null; },
+  setItem: function(k, v) { _store[k] = v; }
+};
+// Override localStorage for testing
+Object.defineProperty(window, 'localStorage', { value: _lsProxy, writable: true });
+
+// ===== Stub DOM for provider button =====
+var stubBtn = document.createElement('button');
+stubBtn.id = 'aiProviderBtn';
+stubBtn.textContent = 'Agnes';
+document.body.appendChild(stubBtn);
+
+// ===== Stub todos for action tests =====
+var todos = [];
+var selectedCategory = '全部';
+var currentTab = 'all';
+var categories = ['全部'];
+
+function saveTodos() {}
+function render() {}
+function renderCategoryBar() {}
+function addToRecycleBin(t) {}
+function showToast(msg) {}
+
+// Stub DOM for tab switching
+var stubTabs = document.createElement('div');
+stubTabs.innerHTML = '<div class="tab" data-tab="all"></div><div class="tab" data-tab="pending"></div><div class="tab" data-tab="in-progress"></div><div class="tab" data-tab="completed"></div>';
+document.body.appendChild(stubTabs);
+
+// ===== PRODUCTION CODE (copied from todo.html) =====
+
+// AI Config
+var AI_PROVIDERS = {
+  agnes: {
+    id: 'agnes', label: 'Agnes',
+    endpoint: 'https://apihub.agnes-ai.com/v1/chat/completions',
+    model: 'agnes-2.0-flash',
+    apiKey: ''
+  },
+  deepseek: {
+    id: 'deepseek', label: 'DeepSeek',
+    endpoint: 'https://api.deepseek.com/v1/chat/completions',
+    model: 'deepseek-chat',
+    apiKey: '', needUserKey: true
+  }
+};
+
+function getAiProvider() {
+  return localStorage.getItem('todo_ai_provider') || 'agnes';
+}
+
+function setAiProvider(id) {
+  localStorage.setItem('todo_ai_provider', id);
+}
+
+function getAiConfig() {
+  var id = getAiProvider();
+  var p = AI_PROVIDERS[id];
+  var key = id === 'deepseek' ? (localStorage.getItem('todo_ai_deepseek_key') || '') : p.apiKey;
+  return { provider: id, endpoint: p.endpoint, model: p.model, apiKey: key };
+}
+
+// Regex Command Parser
+function parseRegexCommand(text) {
+  var t = text.trim();
+
+  var m1 = t.match(/加一条(.+?)的(.+)/);
+  if (m1) return { action: 'addTodo', text: m1[2].trim(), category: m1[1].trim() };
+
+  var m2 = t.match(/^(?:添加|加一条?|加)\s*(.+)/);
+  if (m2 && m2[1].length <= 80) return { action: 'addTodo', text: m2[1].trim(), category: '全部' };
+
+  var m3 = t.match(/^删除(.+)/);
+  if (m3 && m3[1].trim()) return { action: 'deleteTodo', keyword: m3[1].trim() };
+
+  var m4 = t.match(/^(?:完成|做完)(.+)/);
+  if (m4 && m4[1].trim()) return { action: 'toggleTodo', keyword: m4[1].trim() };
+
+  var m5 = t.match(/^(?:显示|切换到?)(.+)标签/);
+  if (m5) return { action: 'showCategory', category: m5[1].trim() };
+
+  var m6 = t.match(/^(今天|进行中|已完成|全部|未完成)的?任务/);
+  if (m6) {
+    var filterMap = { '今天': 'all', '进行中': 'in-progress', '已完成': 'completed', '全部': 'all', '未完成': 'pending' };
+    return { action: 'listTodos', filter: filterMap[m6[1]] || 'all' };
+  }
+
+  return null;
+}
+
+// AI System Prompt
+function getAiSystemPrompt() {
+  return '你是一个待办事项助手。你可以帮用户管理他们的待办事项。\n\n'
+    + '当用户要求操作待办时，在回复末尾附上一个 JSON 动作块（用 ```json 代码块包裹）：\n\n'
+    + '可用动作：\n'
+    + '- addTodo: { "action": "addTodo", "text": "待办内容", "category": "标签" }\n'
+    + '- deleteTodo: { "action": "deleteTodo", "keyword": "匹配文本" }\n'
+    + '- toggleTodo: { "action": "toggleTodo", "keyword": "匹配文本" }\n'
+    + '- listTodos: { "action": "listTodos", "filter": "all|todo|in-progress|completed" }\n'
+    + '- showCategory: { "action": "showCategory", "category": "标签名" }\n\n'
+    + '规则：\n'
+    + '1. 先简短回复用户（1-2句话），然后在 ```json 代码块中给出动作\n'
+    + '2. 标签(category)默认为"全部"，用户提到特定科目/类别时使用\n'
+    + '3. 如果用户只是聊天/提问，不需要动作块\n'
+    + '4. addTodo 的 text 应该简洁明了，提取用户的核心待办内容\n'
+    + '5. 多个动作可以放在一个 JSON 数组中';
+}
+
+// AI Action Parser
+function parseAiActions(replyText) {
+  var match = replyText.match(/```json\s*([\s\S]*?)```/);
+  if (!match) return { text: replyText, actions: [] };
+  try {
+    var parsed = JSON.parse(match[1]);
+    var actions = Array.isArray(parsed) ? parsed : [parsed];
+    var text = replyText.replace(/```json[\s\S]*?```/, '').trim();
+    return { text: text, actions: actions };
+  } catch(e) {
+    return { text: replyText, actions: [] };
+  }
+}
+
+// Action Executor
+function selectCategory(cat) { selectedCategory = cat; }
+
+function executeAction(action) {
+  switch(action.action) {
+    case 'addTodo':
+      todos.push({ id: Date.now(), text: action.text, status: 'todo', createdAt: Date.now(), category: action.category || '全部' });
+      break;
+    case 'deleteTodo':
+      var q = (action.keyword || '').toLowerCase();
+      for (var i = 0; i < todos.length; i++) {
+        if (todos[i].text.toLowerCase().indexOf(q) !== -1) { todos.splice(i, 1); break; }
+      }
+      break;
+    case 'toggleTodo':
+      var q2 = (action.keyword || '').toLowerCase();
+      for (var i = 0; i < todos.length; i++) {
+        if (todos[i].text.toLowerCase().indexOf(q2) !== -1) {
+          var t = todos[i];
+          if (t.status === 'todo') t.status = 'in-progress';
+          else if (t.status === 'in-progress') t.status = 'completed';
+          else t.status = 'todo';
+          break;
+        }
+      }
+      break;
+    case 'listTodos':
+      if (action.filter) currentTab = action.filter;
+      break;
+    case 'showCategory':
+      if (action.category) selectCategory(action.category);
+      break;
+  }
+}
+
+// ===== TESTS =====
+
+// TEST 1: AI config
+assert(typeof getAiProvider === 'function', 'getAiProvider is a function');
+assert(typeof setAiProvider === 'function', 'setAiProvider is a function');
+assert(typeof getAiConfig === 'function', 'getAiConfig is a function');
+
+setAiProvider('agnes');
+assert(getAiProvider() === 'agnes', 'set/get AiProvider: agnes');
+
+setAiProvider('deepseek');
+assert(getAiProvider() === 'deepseek', 'set/get AiProvider: deepseek');
+
+setAiProvider('agnes');
+var cfg = getAiConfig();
+assert(typeof cfg === 'object' && cfg !== null, 'getAiConfig returns object');
+assert(typeof cfg.endpoint === 'string' && cfg.endpoint.length > 0, 'Config has endpoint');
+assert(typeof cfg.model === 'string' && cfg.model.length > 0, 'Config has model');
+assert(typeof cfg.apiKey === 'string' && cfg.apiKey.length > 0, 'Agnes config has apiKey');
+assert(cfg.provider === 'agnes', 'Config contains provider id');
+
+// TEST 2: Regex parsing
+assert(typeof parseRegexCommand === 'function', 'parseRegexCommand is a function');
+
+var r1 = parseRegexCommand('加一条刑法的复习刑法第三章');
+assert(r1 !== null, '"加一条刑法的复习刑法第三章" → matched');
+assert(r1.action === 'addTodo', '  action = addTodo');
+assert(r1.text === '复习刑法第三章', '  text = 复习刑法第三章');
+assert(r1.category === '刑法', '  category = 刑法');
+
+var r2 = parseRegexCommand('加一条背单词');
+assert(r2 !== null, '"加一条背单词" → matched');
+assert(r2.action === 'addTodo', '  action = addTodo');
+assert(r2.category === '全部', '  default category = 全部');
+
+var r3 = parseRegexCommand('添加买菜');
+assert(r3 !== null && r3.action === 'addTodo', '"添加买菜" → addTodo');
+
+var r4 = parseRegexCommand('删除买菜');
+assert(r4 !== null && r4.action === 'deleteTodo' && r4.keyword === '买菜', '"删除买菜" → deleteTodo');
+
+var r5 = parseRegexCommand('完成周报');
+assert(r5 !== null && r5.action === 'toggleTodo' && r5.keyword === '周报', '"完成周报" → toggleTodo');
+
+var r6 = parseRegexCommand('显示工作标签');
+assert(r6 !== null && r6.action === 'showCategory' && r6.category === '工作', '"显示工作标签" → showCategory');
+
+var r7 = parseRegexCommand('今天的任务');
+assert(r7 !== null && r7.action === 'listTodos', '"今天的任务" → listTodos');
+
+var r8 = parseRegexCommand('进行中的任务');
+assert(r8 !== null && r8.filter === 'in-progress', '"进行中的任务" → in-progress filter');
+
+// Non-commands → null (fall through to AI)
+assert(parseRegexCommand('你好') === null, '"你好" → null (no match, goes to AI)');
+assert(parseRegexCommand('帮我分析一下这周的工作效率') === null, 'Complex query → null (goes to AI)');
+
+// TEST 3: AI action parser
+assert(typeof parseAiActions === 'function', 'parseAiActions is a function');
+
+var reply1 = '好的，已经添加了。\n```json\n{"action":"addTodo","text":"复习刑法","category":"刑法"}\n```';
+var parsed1 = parseAiActions(reply1);
+assert(typeof parsed1.text === 'string' && parsed1.text.indexOf('好的') !== -1, 'parseAiActions extracts text');
+assert(Array.isArray(parsed1.actions) && parsed1.actions.length === 1, 'parseAiActions extracts 1 action');
+assert(parsed1.actions[0].action === 'addTodo' && parsed1.actions[0].text === '复习刑法', 'Action details correct');
+
+var reply2 = '好的。\n```json\n[{"action":"addTodo","text":"任务1"},{"action":"addTodo","text":"任务2"}]\n```';
+var parsed2 = parseAiActions(reply2);
+assert(parsed2.actions.length === 2, 'Multiple actions → array parsed');
+
+var reply3 = '你好！有什么可以帮助你的吗？';
+var parsed3 = parseAiActions(reply3);
+assert(parsed3.actions.length === 0, 'No JSON block → empty actions');
+assert(parsed3.text === reply3, 'Full text returned');
+
+// TEST 4: System prompt
+assert(typeof getAiSystemPrompt === 'function', 'getAiSystemPrompt is a function');
+var prompt = getAiSystemPrompt();
+assert(prompt.length > 50, 'Prompt is non-trivial');
+assert(prompt.indexOf('addTodo') !== -1, 'Prompt mentions addTodo');
+assert(prompt.indexOf('deleteTodo') !== -1, 'Prompt mentions deleteTodo');
+
+// TEST 5: executeAction
+assert(typeof executeAction === 'function', 'executeAction is a function');
+
+todos = [];
+executeAction({ action: 'addTodo', text: '测试任务', category: '学习' });
+assert(todos.length === 1 && todos[0].text === '测试任务', 'executeAction addTodo works');
+assert(todos[0].category === '学习', 'Category set correctly');
+
+executeAction({ action: 'deleteTodo', keyword: '测试' });
+assert(todos.length === 0, 'executeAction deleteTodo works');
+
+todos = [{ id: 1, text: '买菜', status: 'todo' }];
+executeAction({ action: 'toggleTodo', keyword: '买菜' });
+assert(todos[0].status === 'in-progress', 'toggleTodo: todo → in-progress');
+executeAction({ action: 'toggleTodo', keyword: '买菜' });
+assert(todos[0].status === 'completed', 'toggleTodo: in-progress → completed');
+executeAction({ action: 'toggleTodo', keyword: '买菜' });
+assert(todos[0].status === 'todo', 'toggleTodo: completed → todo');
+
+executeAction({ action: 'showCategory', category: '工作' });
+assert(selectedCategory === '工作', 'showCategory changes category');
+
+executeAction({ action: 'listTodos', filter: 'completed' });
+assert(currentTab === 'completed', 'listTodos changes tab');
+
+// ===== Summary =====
+var summary = document.createElement('h2');
+summary.textContent = (passed + failed) + ' tests: ' + passed + ' passed, ' + failed + ' failed';
+summary.style.cssText = failed > 0 ? 'color: #ff6b6b' : 'color: #2EC4B6';
+results.appendChild(summary);
+</script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+name: Bug report
+description: Report a reproducible problem
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: issue
+    attributes:
+      label: What happened?
+      description: Describe the problem and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. Open...\n2. Tap...\n3. See..."
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device / Android version
+      placeholder: "e.g. Pixel 8 / Android 16"
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      placeholder: "e.g. v1.19.1"
