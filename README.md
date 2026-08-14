@@ -12,12 +12,12 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white" alt="Android 8.0+">
   <img src="https://img.shields.io/badge/Kotlin-2.1.0-7F52FF?logo=kotlin&logoColor=white" alt="Kotlin 2.1.0">
-  <img src="https://img.shields.io/badge/Version-1.19.1-2C8C7B" alt="Version 1.19.1">
+  <img src="https://img.shields.io/badge/Version-1.22.6-2C8C7B" alt="Version 1.22.6">
   <img src="https://img.shields.io/badge/License-MIT-blue" alt="MIT License">
 </p>
 
 <p align="center">
-  <a href="https://github.com/C666249/To-Do/releases/latest/download/To-Do-v1.19.1.apk"><b>⬇️ 下载 Android APK · v1.19.1</b></a>
+  <a href="https://github.com/C666249/To-Do/releases/latest/download/To-Do-v1.22.6.apk"><b>⬇️ 下载 Android APK · v1.22.6</b></a>
 </p>
 
 <p align="center">
@@ -43,6 +43,35 @@ To-Do 的核心数据保存在本机；提醒系统针对 Android 后台场景�
 
 > 这是一个个人项目，也欢迎你 Fork、改造成自己喜欢的版本。
 
+## 🆕 v1.22.6 更新亮点
+
+这次从 v1.19.1 跨到 v1.22.6，最大的变化是 Note 不再只放文字和图片，而是可以作为一个轻量的本地文件工作区。
+
+### Note 文件系统
+
+- 从 Android 系统文件选择器一次添加多个文件
+- 从微信、QQ 或其他 App 通过“添加到 To-Do”分享回当前 Note
+- 文件复制到 App 私有目录，并以格式、文件名和大小清晰展示为卡片
+- 支持最近导入文件的复用，以及微信 / QQ / 更多应用分享
+- 删除附件或 Note 时清理对应私有文件，不申请“读取全部存储”权限
+
+### 应用内文件预览
+
+- 内置预览 Markdown / 文本 / 代码 / JSON / XML / CSV、PDF、图片及常见音视频
+- DOCX / XLSX 提供轻量快速预览；复杂排版仍建议使用 WPS / Office 核对
+- APK、PPT/PPTX、压缩包和专业格式直接交给系统中的专业应用
+- PDF 支持纵向连续阅读、按需渲染及双指缩放；Note 图片支持全屏缩放和平移
+- 预览页始终保留“其他应用”，可以随时切换到外部查看器
+
+### Note 编辑体验
+
+- 正文成为唯一滚动区域，减少长文输入、删除和移动光标时的跳顶
+- 格式工具栏跟随软键盘，低位光标只做最小必要滚动
+- `B` 粗体、`S` 删除线、`H` 高亮改为明确的未来输入状态，不再从相邻格式文字自动继承
+- 点击正文图片会先安全关闭键盘，再进入预览；竖向滑动图片仍可滚动 Note
+
+详细格式支持与边界见 [`docs/NOTE_FILES_AND_PREVIEW.md`](docs/NOTE_FILES_AND_PREVIEW.md)。
+
 ## 📱 截图与演示
 
 <p align="center">
@@ -59,8 +88,13 @@ To-Do 的核心数据保存在本机；提醒系统针对 Android 后台场景�
   <img src="docs/screenshots/note-images.jpg" width="23%" alt="Note 图文编辑" />
 </p>
 
+<p align="center">
+  <img src="docs/screenshots/note-file-workspace.jpg" width="46%" alt="Note 文件卡片工作区" />
+  <img src="docs/screenshots/note-built-in-preview.jpg" width="46%" alt="Markdown 应用内预览" />
+</p>
+
 <p align="center"><sub>
-首次引导 / To-Do 隐藏手势 / Daily 面板 / Note 长期记录 / 每日总结提醒 / Daily 历史完成度 / 单项 Daily 打卡轨迹 / Note 图文编辑
+首次引导 / To-Do 隐藏手势 / Daily 面板 / Note 长期记录 / 每日总结提醒 / Daily 历史完成度 / 单项 Daily 打卡轨迹 / Note 图文编辑 / 文件工作区 / 应用内预览
 </sub></p>
 
 ### 🎬 手势短演示
@@ -97,8 +131,10 @@ To-Do 的核心数据保存在本机；提醒系统针对 Android 后台场景�
 - 文件夹、子笔记、富文本编辑
 - 支持从系统相册一次多选图片
 - 图片插入当前编辑位置
-- 图片保存在 App 私有目录，不将大图 Base64 塞入 localStorage
-- 图片预览与删除
+- 支持从系统文件选择器、微信、QQ 或其他 App 导入文件
+- 图片和附件保存在 App 私有目录，不将大文件 Base64 塞入 localStorage
+- 文件卡片、最近导入、分享、删除与应用内快速预览
+- PDF / 图片双指缩放；复杂格式可随时交给其他专业应用
 
 ### Reminder Banner
 
@@ -135,7 +171,7 @@ Android 原生层使用 `AlarmManager + Foreground Service + WindowManager Overl
 
 推荐从仓库的 [**Releases** 页面](https://github.com/C666249/To-Do/releases/latest) 下载最新 APK。
 
-也可以直接下载：[**To-Do-v1.19.1.apk**](https://github.com/C666249/To-Do/releases/latest/download/To-Do-v1.19.1.apk)
+也可以直接下载：[**To-Do-v1.22.6.apk**](https://github.com/C666249/To-Do/releases/latest/download/To-Do-v1.22.6.apk)
 
 如果你从源码构建：
 
@@ -146,7 +182,7 @@ Windows: build-apk.bat
 成功后 APK 默认复制到：
 
 ```text
-dist/To-Do-v1.19.1.apk
+dist/To-Do-v1.22.6.apk
 ```
 
 > Android 覆盖安装能否保留旧版本地数据，取决于 applicationId 与签名是否一致。不要为了升级先卸载旧版本。
@@ -211,8 +247,9 @@ AI 助手属于可选功能，需要你自己配置兼容的 API Key。核心 To
 ## 🔐 隐私与数据
 
 - To-Do / Note / Daily 核心数据以本地存储为主。
-- Note 图片会复制进 App 私有文件目录。
-- 项目不需要为了 Note 图片访问整个系统图库，使用系统图片选择器授权选择内容。
+- Note 图片与文件附件会复制进 App 私有文件目录。
+- 项目使用系统图片 / 文件选择器和分享授权，不申请读取整个系统存储空间。
+- 使用“其他应用”打开或分享附件时，只向被选中的应用临时授予该文件的只读权限。
 - AI 功能开启后，请求会发送至你配置的第三方 AI API 服务。
 
 更多说明见 [`PRIVACY.md`](PRIVACY.md) 与 [`SECURITY.md`](SECURITY.md)。

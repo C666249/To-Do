@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/C666249/To-Do/releases/latest/download/To-Do-v1.19.1.apk"><b>⬇️ Download Android APK · v1.19.1</b></a>
+  <a href="https://github.com/C666249/To-Do/releases/latest/download/To-Do-v1.22.6.apk"><b>⬇️ Download Android APK · v1.22.6</b></a>
 </p>
 
 ## Overview
@@ -28,6 +28,11 @@ To-Do is a lightweight personal productivity project that keeps **normal tasks, 
   <img src="docs/screenshots/todo-hidden-swipe.jpg" width="23%" alt="Hidden swipe actions" />
   <img src="docs/screenshots/daily-main.jpg" width="23%" alt="Daily panel" />
   <img src="docs/screenshots/note-mode.jpg" width="23%" alt="Note mode" />
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/note-file-workspace.jpg" width="46%" alt="Note file workspace" />
+  <img src="docs/screenshots/note-built-in-preview.jpg" width="46%" alt="Built-in Markdown preview" />
 </p>
 
 <p align="center">
@@ -51,7 +56,11 @@ Banner reminders support **swipe right to snooze**, **swipe left to dismiss**, *
 
 - Three-state To-Do items: pending / in-progress / done
 - Independent **Daily** items that reset every day
-- **Note** mode with folders, sub-notes, rich text, and image insertion
+- **Note** mode with folders, sub-notes, rich text, images, and general file attachments
+- System file picker plus share-back import from WeChat, QQ, and other Android apps
+- Built-in quick preview for text/Markdown, PDF, images, media, DOCX, and XLSX, with external-app fallback
+- Continuous PDF reading with pinch zoom and full-screen Note image zoom/pan
+- Focus-safe long-note editing with explicit bold, strikethrough, and highlight input states
 - Android overlay reminder banners with gesture controls
 - Visual onboarding + contextual hidden-feature coaching
 - Optional AI assistant (no API key shipped in this repo)
@@ -72,11 +81,11 @@ build-apk.bat
 
 Download the latest APK from [GitHub Releases](https://github.com/C666249/To-Do/releases/latest).
 
-Direct download: [**To-Do-v1.19.1.apk**](https://github.com/C666249/To-Do/releases/latest/download/To-Do-v1.19.1.apk)
+Direct download: [**To-Do-v1.22.6.apk**](https://github.com/C666249/To-Do/releases/latest/download/To-Do-v1.22.6.apk)
 
 ## Privacy
 
-Core task, note, and Daily data is stored locally. See [`PRIVACY.md`](PRIVACY.md) and [`SECURITY.md`](SECURITY.md) for details.
+Core task, note, and Daily data is stored locally. Note images and file attachments are copied into the app-private directory. See [`PRIVACY.md`](PRIVACY.md) and [`SECURITY.md`](SECURITY.md) for details.
 
 ## License
 

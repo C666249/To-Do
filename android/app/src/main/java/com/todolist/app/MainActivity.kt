@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.AlarmManager
 import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.ClipData
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
@@ -11,6 +12,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.provider.OpenableColumns
 import android.webkit.JavascriptInterface
 import android.webkit.MimeTypeMap
 import android.webkit.WebChromeClient
@@ -18,11 +20,16 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.Toast
+import android.view.inputmethod.InputMethodManager
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.todolist.app.manager.FloatWindowManager
 import com.todolist.app.receiver.MidnightReceiver
 import com.todolist.app.reminder.DailyTaskStore
@@ -52,11 +59,22 @@ class MainActivity : AppCompatActivity() {
     private var pendingFocusTodoId: Long = -1L
     private var pendingFocusDailyTaskId: Long = -1L
     private var pendingNoteImageNoteId: Long = -1L
+    private var pendingNoteFileNoteId: Long = -1L
+    private var pendingExternalNotePayload: Pair<Long, String>? = null
+    private var externalImportLaunched = false
+    private var externalImportWentBackground = false
+    private var externalImportShareHandled = false
 
     private val noteImagePicker = registerForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia(20)
     ) { uris ->
         handlePickedNoteImages(uris)
+    }
+
+    private val noteFilePicker = registerForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris ->
+        handlePickedNoteFiles(uris)
     }
 
     private var permissionFlowActive = false
@@ -108,9 +126,12 @@ class MainActivity : AppCompatActivity() {
                 override fun onPageFinished(view: WebView?, url: String?) {
                     super.onPageFinished(view, url)
                     pageReady = true
+                    ViewCompat.requestApplyInsets(webView)
                     pullNativeMutationsIntoWeb()
                     deliverPendingFocus()
                     deliverPendingDailyFocus()
+                    consumeExternalImportQueue()
+                    deliverPendingExternalNoteFiles()
                 }
             }
             webChromeClient = WebChromeClient()
@@ -119,12 +140,14 @@ class MainActivity : AppCompatActivity() {
         }
 
         setContentView(webView)
+        installImeInsetsBridge()
         registerNativeMutationReceiver()
 
         try {
             ReminderScheduler.rescheduleAll(this, restoreFiredOverdue = true)
             if (ReminderScheduler.hasArmedWork(this)) FloatWindowService.ensureKeeperRunning(this)
         } catch (_: Exception) {}
+        consumeExternalImportQueue()
     }
 
     override fun onResume() {
@@ -139,6 +162,27 @@ class MainActivity : AppCompatActivity() {
         pullNativeMutationsIntoWeb()
         deliverPendingFocus()
         deliverPendingDailyFocus()
+        consumeExternalImportQueue()
+        deliverPendingExternalNoteFiles()
+        if (externalImportLaunched && externalImportWentBackground && !externalImportShareHandled) {
+            webView.postDelayed({
+                if (externalImportLaunched && !externalImportShareHandled) {
+                    val noteId = externalImportPrefs().getLong("note_id", -1L)
+                    clearExternalImportState()
+                    if (noteId > 0L && pageReady) {
+                        webView.evaluateJavascript(
+                            "window.__onExternalNoteImportCancelled && window.__onExternalNoteImportCancelled($noteId);",
+                            null
+                        )
+                    }
+                }
+            }, 650)
+        }
+    }
+
+    override fun onPause() {
+        if (externalImportLaunched) externalImportWentBackground = true
+        super.onPause()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -147,6 +191,7 @@ class MainActivity : AppCompatActivity() {
         val id = intent.getLongExtra(EXTRA_FOCUS_TODO_ID, -1L)
         if (id > 0L) pendingFocusTodoId = id
         consumeDailyFocusIntent(intent)
+        consumeExternalImportQueue()
         pullNativeMutationsIntoWeb()
         deliverPendingFocus()
         deliverPendingDailyFocus()
@@ -186,6 +231,30 @@ class MainActivity : AppCompatActivity() {
         if (requestCode == REQ_NOTIFICATIONS && permissionFlowActive) {
             webView.postDelayed({ continueReminderPermissionFlow() }, 150)
         }
+    }
+
+    private fun installImeInsetsBridge() {
+        ViewCompat.setOnApplyWindowInsetsListener(webView) { _, insets ->
+            val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
+            val imeBottom = if (imeVisible) insets.getInsets(WindowInsetsCompat.Type.ime()).bottom else 0
+            if (pageReady) {
+                webView.post {
+                    webView.evaluateJavascript(
+                        "window.__onNativeImeInset && window.__onNativeImeInset(${imeBottom},${if (imeVisible) "true" else "false"});",
+                        null
+                    )
+                }
+            }
+            insets
+        }
+        ViewCompat.requestApplyInsets(webView)
+    }
+
+    private fun hideSoftKeyboard() {
+        try {
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.hideSoftInputFromWindow(webView.windowToken, 0)
+        } catch (_: Exception) {}
     }
 
     private fun registerNativeMutationReceiver() {
@@ -390,6 +459,286 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
+    private fun noteFileDir(): File = File(filesDir, "note_files").apply { mkdirs() }
+
+    private fun isSafeNoteFileName(name: String): Boolean =
+        name.matches(Regex("[A-Za-z0-9._-]{1,180}")) && !name.contains("..")
+
+    private fun queryDocumentMeta(uri: Uri): Pair<String, Long> {
+        var displayName = "附件"
+        var size = -1L
+        try {
+            contentResolver.query(
+                uri,
+                arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE),
+                null, null, null
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                    if (nameIndex >= 0) displayName = cursor.getString(nameIndex)?.takeIf { it.isNotBlank() } ?: displayName
+                    if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) size = cursor.getLong(sizeIndex)
+                }
+            }
+        } catch (_: Exception) {}
+        return displayName to size
+    }
+
+    private fun safeDocumentExtension(displayName: String, mime: String): String {
+        val fromName = displayName.substringAfterLast('.', "")
+            .lowercase()
+            .takeIf { it.matches(Regex("[a-z0-9]{1,10}")) }
+        if (fromName != null) return fromName
+        return MimeTypeMap.getSingleton().getExtensionFromMimeType(mime)
+            ?.lowercase()
+            ?.takeIf { it.matches(Regex("[a-z0-9]{1,10}")) }
+            ?: "bin"
+    }
+
+    private fun guessNoteFileMime(fileName: String): String {
+        val ext = fileName.substringAfterLast('.', "").lowercase()
+        return MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) ?: when (ext) {
+            "md", "markdown" -> "text/markdown"
+            "json" -> "application/json"
+            "csv" -> "text/csv"
+            "log" -> "text/plain"
+            else -> "application/octet-stream"
+        }
+    }
+
+    private fun copyPickedNoteFile(noteId: Long, source: Uri, index: Int): JSONObject? {
+        return try {
+            val resolver = contentResolver
+            val rawMime = resolver.getType(source) ?: "application/octet-stream"
+            val (displayName, reportedSize) = queryDocumentMeta(source)
+            val mime = if (rawMime == "application/octet-stream") guessNoteFileMime(displayName) else rawMime
+            val extension = safeDocumentExtension(displayName, mime)
+            val fileName = "note_file_${noteId}_${System.currentTimeMillis()}_${index}_${UUID.randomUUID().toString().take(8)}.$extension"
+            val destination = File(noteFileDir(), fileName)
+            resolver.openInputStream(source)?.use { input ->
+                destination.outputStream().buffered().use { output -> input.copyTo(output) }
+            } ?: return null
+            if (destination.length() <= 0L) {
+                destination.delete()
+                return null
+            }
+            JSONObject()
+                .put("name", fileName)
+                .put("displayName", displayName)
+                .put("mime", mime)
+                .put("size", if (reportedSize > 0L) reportedSize else destination.length())
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun handlePickedNoteFiles(uris: List<Uri>) {
+        val noteId = pendingNoteFileNoteId
+        pendingNoteFileNoteId = -1L
+        Thread {
+            val payload = JSONArray()
+            if (noteId > 0L) {
+                uris.take(30).forEachIndexed { index, uri ->
+                    copyPickedNoteFile(noteId, uri, index)?.let { payload.put(it) }
+                }
+            }
+            if (!pageReady) return@Thread
+            val json = payload.toString()
+            webView.post {
+                webView.evaluateJavascript(
+                    "window.__onNoteFilesPicked && window.__onNoteFilesPicked($json);",
+                    null
+                )
+            }
+        }.start()
+    }
+
+    private fun getNoteFile(fileName: String): File? {
+        if (!isSafeNoteFileName(fileName)) return null
+        val file = File(noteFileDir(), fileName)
+        return file.takeIf { it.exists() && it.isFile }
+    }
+
+    private fun getNoteFileUri(file: File): Uri =
+        FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+
+    private fun buildNoteFileShareIntent(file: File): Intent {
+        val uri = getNoteFileUri(file)
+        return Intent(Intent.ACTION_SEND).apply {
+            type = guessNoteFileMime(file.name)
+            putExtra(Intent.EXTRA_STREAM, uri)
+            clipData = ClipData.newRawUri("note_attachment", uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+    }
+
+    private fun resolvePreferredSharePackage(intent: Intent, target: String): String? {
+        val directPackage = when (target) {
+            "wechat" -> "com.tencent.mm"
+            "qq" -> "com.tencent.mobileqq"
+            else -> null
+        }
+        if (directPackage != null) {
+            val probe = Intent(intent).setPackage(directPackage)
+            if (probe.resolveActivity(packageManager) != null) return directPackage
+        }
+        val candidates = try { packageManager.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY) } catch (_: Exception) { emptyList() }
+        return candidates.firstOrNull { info ->
+            val label = try { info.loadLabel(packageManager).toString() } catch (_: Exception) { "" }
+            when (target) {
+                "wechat" -> label.contains("微信", ignoreCase = true) || label.contains("WeChat", ignoreCase = true)
+                "qq" -> label.equals("QQ", ignoreCase = true) || label.contains("QQ", ignoreCase = true)
+                else -> false
+            }
+        }?.activityInfo?.packageName
+    }
+
+    private fun externalImportPrefs() = getSharedPreferences("note_external_import", Context.MODE_PRIVATE)
+    private fun externalImportQueuePrefs() = getSharedPreferences("note_external_import_queue", Context.MODE_PRIVATE)
+
+    private fun consumeExternalImportQueue() {
+        val prefs = externalImportQueuePrefs()
+        val payload = prefs.getString("payload", null) ?: return
+        val noteId = prefs.getLong("note_id", -1L)
+        prefs.edit().clear().apply()
+        externalImportShareHandled = true
+        externalImportLaunched = false
+        externalImportWentBackground = false
+        externalImportPrefs().edit().clear().apply()
+        pendingExternalNotePayload = noteId to payload
+        deliverPendingExternalNoteFiles()
+    }
+
+    private fun clearExternalImportState() {
+        externalImportLaunched = false
+        externalImportWentBackground = false
+        externalImportShareHandled = false
+        externalImportPrefs().edit().clear().apply()
+    }
+
+    private fun pendingExternalNoteId(): Long = externalImportPrefs().getLong("note_id", -1L)
+
+    @Suppress("DEPRECATION")
+    private fun extractIncomingNoteUris(intent: Intent): List<Uri> {
+        val result = linkedSetOf<Uri>()
+        when (intent.action) {
+            Intent.ACTION_SEND -> {
+                intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)?.let { result += it }
+                intent.data?.let { result += it }
+            }
+            Intent.ACTION_SEND_MULTIPLE -> {
+                intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)?.forEach { result += it }
+            }
+            Intent.ACTION_VIEW -> intent.data?.let { result += it }
+        }
+        intent.clipData?.let { clip ->
+            for (i in 0 until clip.itemCount) clip.getItemAt(i).uri?.let { result += it }
+        }
+        return result.filter { it.scheme == "content" || it.scheme == "file" }
+    }
+
+    private fun handleIncomingNoteShareIntent(intent: Intent) {
+        val action = intent.action ?: return
+        if (action != Intent.ACTION_SEND && action != Intent.ACTION_SEND_MULTIPLE && action != Intent.ACTION_VIEW) return
+        val uris = extractIncomingNoteUris(intent)
+        if (uris.isEmpty()) return
+        val noteId = pendingExternalNoteId().takeIf { it > 0L } ?: return
+        externalImportShareHandled = true
+        externalImportLaunched = false
+        externalImportWentBackground = false
+        externalImportPrefs().edit().clear().apply()
+        Thread {
+            val payload = JSONArray()
+            uris.take(30).forEachIndexed { index, uri ->
+                copyPickedNoteFile(noteId, uri, index)?.let { payload.put(it) }
+            }
+            val json = payload.toString()
+            pendingExternalNotePayload = noteId to json
+            deliverPendingExternalNoteFiles()
+        }.start()
+    }
+
+    private fun deliverPendingExternalNoteFiles() {
+        if (!pageReady) return
+        val pending = pendingExternalNotePayload ?: return
+        pendingExternalNotePayload = null
+        val noteId = pending.first
+        val json = pending.second
+        webView.post {
+            webView.evaluateJavascript(
+                "window.__onExternalNoteFilesPicked && window.__onExternalNoteFilesPicked($noteId,$json);",
+                null
+            )
+        }
+    }
+
+    private fun launchExternalImportTarget(noteId: Long, target: String): String {
+        val packageId = when (target) {
+            "wechat" -> "com.tencent.mm"
+            "qq" -> "com.tencent.mobileqq"
+            else -> return "invalid"
+        }
+        val launch = packageManager.getLaunchIntentForPackage(packageId) ?: return "unavailable"
+        externalImportPrefs().edit()
+            .putLong("note_id", noteId)
+            .putString("target", target)
+            .putLong("started_at", System.currentTimeMillis())
+            .apply()
+        externalImportLaunched = true
+        externalImportWentBackground = false
+        externalImportShareHandled = false
+        runOnUiThread {
+            try {
+                Toast.makeText(
+                    this,
+                    if (target == "wechat") "选好微信文件后，分享给「添加到 To-Do」" else "选好 QQ 文件后，分享给「添加到 To-Do」",
+                    Toast.LENGTH_LONG
+                ).show()
+                startActivity(launch)
+            } catch (_: Exception) {
+                clearExternalImportState()
+            }
+        }
+        return "ok"
+    }
+
+    private fun cloneStoredNoteFile(sourceName: String, noteId: Long, displayName: String, mime: String): JSONObject? {
+        val source = getNoteFile(sourceName) ?: return null
+        return try {
+            val extension = safeDocumentExtension(displayName, mime)
+            val newName = "note_file_${noteId}_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(8)}.$extension"
+            val destination = File(noteFileDir(), newName)
+            source.inputStream().buffered().use { input ->
+                destination.outputStream().buffered().use { output -> input.copyTo(output) }
+            }
+            if (destination.length() <= 0L) { destination.delete(); return null }
+            JSONObject()
+                .put("name", newName)
+                .put("displayName", displayName.ifBlank { sourceName })
+                .put("mime", mime.ifBlank { guessNoteFileMime(displayName) })
+                .put("size", destination.length())
+        } catch (_: Exception) { null }
+    }
+
+    private fun openNoteFileWithExternalApp(file: File, displayName: String, mime: String): String {
+        return try {
+            val uri = getNoteFileUri(file)
+            val resolvedMime = mime.takeUnless { it.isBlank() || it == "application/octet-stream" }
+                ?: guessNoteFileMime(displayName.ifBlank { file.name })
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, resolvedMime)
+                clipData = ClipData.newRawUri(displayName.ifBlank { "note_attachment" }, uri)
+                putExtra(Intent.EXTRA_TITLE, displayName)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            if (intent.resolveActivity(packageManager) == null) return "unavailable"
+            runOnUiThread {
+                try { startActivity(Intent.createChooser(intent, "使用其他应用打开")) } catch (_: Exception) {}
+            }
+            "ok"
+        } catch (_: Exception) { "failed" }
+    }
+
     inner class AndroidBridge {
         @JavascriptInterface
         fun pickNoteImages(noteIdRaw: String): String {
@@ -420,6 +769,111 @@ class MainActivity : AppCompatActivity() {
             return try {
                 val file = File(noteImageDir(), fileName)
                 if (file.exists()) file.delete()
+                "ok"
+            } catch (_: Exception) {
+                "failed"
+            }
+        }
+
+        @JavascriptInterface
+        fun pickNoteFiles(noteIdRaw: String): String {
+            val noteId = noteIdRaw.toLongOrNull() ?: return "invalid"
+            if (noteId <= 0L) return "invalid"
+            pendingNoteFileNoteId = noteId
+            runOnUiThread {
+                try {
+                    noteFilePicker.launch(arrayOf("*/*"))
+                } catch (_: Exception) {
+                    pendingNoteFileNoteId = -1L
+                    if (pageReady) {
+                        webView.evaluateJavascript(
+                            "window.__onNoteFilesPicked && window.__onNoteFilesPicked([]);",
+                            null
+                        )
+                    }
+                }
+            }
+            return "ok"
+        }
+
+        @JavascriptInterface
+        fun deleteNoteFile(fileName: String): String {
+            val file = getNoteFile(fileName) ?: return "invalid"
+            return try {
+                file.delete()
+                "ok"
+            } catch (_: Exception) {
+                "failed"
+            }
+        }
+
+        @JavascriptInterface
+        fun hideNoteKeyboard(): String {
+            runOnUiThread { hideSoftKeyboard() }
+            return "ok"
+        }
+
+        @JavascriptInterface
+        fun beginExternalNoteImport(noteIdRaw: String, target: String): String {
+            val noteId = noteIdRaw.toLongOrNull() ?: return "invalid"
+            if (noteId <= 0L) return "invalid"
+            return launchExternalImportTarget(noteId, target)
+        }
+
+        @JavascriptInterface
+        fun cloneNoteFile(sourceName: String, noteIdRaw: String, displayName: String, mime: String): String {
+            val noteId = noteIdRaw.toLongOrNull() ?: return "{}"
+            if (noteId <= 0L) return "{}"
+            return cloneStoredNoteFile(sourceName, noteId, displayName, mime)?.toString() ?: "{}"
+        }
+
+        @JavascriptInterface
+        fun previewNoteFile(fileName: String, displayName: String, mime: String): String {
+            val file = getNoteFile(fileName) ?: return "missing"
+            val resolvedMime = mime.takeUnless { it.isBlank() || it == "application/octet-stream" }
+                ?: guessNoteFileMime(displayName.ifBlank { file.name })
+            if (!NoteFileViewerActivity.supportsInternalPreview(displayName.ifBlank { file.name }, resolvedMime)) {
+                return openNoteFileWithExternalApp(file, displayName, resolvedMime)
+            }
+            return try {
+                runOnUiThread {
+                    try {
+                        startActivity(
+                            Intent(this@MainActivity, NoteFileViewerActivity::class.java).apply {
+                                putExtra(NoteFileViewerActivity.EXTRA_FILE_PATH, file.absolutePath)
+                                putExtra(NoteFileViewerActivity.EXTRA_DISPLAY_NAME, displayName.ifBlank { file.name })
+                                putExtra(NoteFileViewerActivity.EXTRA_MIME, resolvedMime)
+                            }
+                        )
+                    } catch (_: Exception) {}
+                }
+                "ok"
+            } catch (_: Exception) { "failed" }
+        }
+
+        @JavascriptInterface
+        fun openNoteFileExternally(fileName: String, displayName: String, mime: String): String {
+            val file = getNoteFile(fileName) ?: return "missing"
+            return openNoteFileWithExternalApp(file, displayName, mime)
+        }
+
+        // Backward-compatible alias retained for any existing note content / older UI callbacks.
+        @JavascriptInterface
+        fun openNoteFile(fileName: String): String {
+            val file = getNoteFile(fileName) ?: return "missing"
+            return openNoteFileWithExternalApp(file, file.name, guessNoteFileMime(file.name))
+        }
+
+        @JavascriptInterface
+        fun shareNoteFile(fileName: String, target: String): String {
+            val file = getNoteFile(fileName) ?: return "missing"
+            return try {
+                val baseIntent = buildNoteFileShareIntent(file)
+                val packageName = resolvePreferredSharePackage(baseIntent, target) ?: return "unavailable"
+                val directIntent = Intent(baseIntent).setPackage(packageName)
+                runOnUiThread {
+                    try { startActivity(directIntent) } catch (_: Exception) {}
+                }
                 "ok"
             } catch (_: Exception) {
                 "failed"

@@ -11,8 +11,8 @@ android {
         applicationId = "com.todolist.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 31
-        versionName = "1.19.1"
+        versionCode = 39
+        versionName = "1.22.6"
     }
 
     buildTypes {

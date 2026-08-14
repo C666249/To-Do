@@ -1,5 +1,33 @@
 # Changelog
 
+## v1.22.6
+
+### Note file workspace
+
+- Added multi-file attachment selection through Android's system file picker.
+- Added share-back import from WeChat, QQ, and other Android apps through a dedicated, no-history import receiver.
+- Stores imported files under the app-private `files/note_files/` directory and inserts reusable file cards into Notes.
+- Added recent-import reuse, direct preview, targeted sharing, external-app opening, and attachment cleanup.
+
+### Built-in preview
+
+- Added in-app preview for Markdown/text/code/JSON/XML/CSV, PDF, images, common audio/video, and lightweight DOCX/XLSX content.
+- Added external-first handling for APK, presentation, archive, executable, and professional formats.
+- Changed PDF viewing to a vertically continuous, lazy-rendered list with bitmap recycling.
+- Added 1×–5× pinch zoom and pan for PDF pages and full-screen Note images.
+
+### Note editor stability
+
+- Restored a single body scroll owner and minimized caret reveal to prevent long-note jump-to-top regressions.
+- Kept the formatting toolbar above the Android soft keyboard using native IME geometry.
+- Made bold, strikethrough, and highlight explicit future-input states instead of inheriting caret formatting.
+- Prevented inline-image taps from reopening the keyboard before full-screen preview while preserving vertical Note scrolling.
+
+### Release safety
+
+- Bumped Android version to `versionCode 39` / `versionName 1.22.6` without changing `applicationId`.
+- Removed embedded developer credentials from public source; optional AI features require the user's own key.
+
 ## v1.19.1
 
 - Updated the launcher and notification artwork.

@@ -1,10 +1,10 @@
-GitHub Publish-Ready Check — To-Do v1.19.1
+GitHub Publish-Ready Check — To-Do v1.22.6
 ========================================
 - Public-source package only; do NOT upload the private Full ZIP directly.
-- local.properties removed.
+- local.properties and signing material excluded by .gitignore.
 - .gradle / .idea / build outputs / internal dev logs removed.
 - Private hardcoded AI API key removed from both todo.html mirrors.
-- README screenshots/media retained.
-- Launcher + notification icons updated to v1.19.1 artwork.
+- README screenshots/media retained, including the v1.22.6 Note file workspace and built-in preview.
+- Note import receiver, private file storage, FileProvider, and built-in viewer source included.
 - applicationId remains com.todolist.app.
-- versionCode=31, versionName=1.19.1.
+- versionCode=39, versionName=1.22.6.

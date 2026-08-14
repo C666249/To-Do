@@ -4,7 +4,7 @@ cd /d "%~dp0"
 set "PACKAGE=com.todolist.app"
 
 echo ============================================================
-echo To-Do v1.19.1 in-place update safety check
+echo To-Do v1.22.6 in-place update safety check
 echo Package: %PACKAGE%
 echo ============================================================
 
@@ -36,10 +36,10 @@ if not defined APKSIGNER (
   exit /b 4
 )
 
-set "NEW_APK="
-for %%F in ("android\app\build\outputs\apk\debug\*.apk") do set "NEW_APK=%%~fF"
-if not defined NEW_APK (
-  echo [ERROR] No debug APK found. Build To-Do once in Android Studio first.
+set "NEW_APK=%CD%\dist\To-Do-v1.22.6.apk"
+if not exist "!NEW_APK!" (
+  echo [ERROR] Signed release APK not found at !NEW_APK!
+  echo         Build, align, and sign the v1.22.6 release APK first.
   exit /b 5
 )
 
@@ -96,6 +96,6 @@ if /I "!OLD_CERT!"=="!NEW_CERT!" (
   echo [BLOCK] Signing certificate mismatch.
   echo         Android will NOT allow this APK to overwrite the installed To-Do app.
   echo         DO NOT uninstall the stable app if its local records/notes are important.
-  echo         Rebuild/sign v1.19.1 with the SAME key that signed the currently installed app.
+  echo         Rebuild/sign v1.22.6 with the SAME key that signed the currently installed app.
   exit /b 20
 )

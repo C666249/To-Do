@@ -78,7 +78,7 @@ open-source
 
 Follow `docs/SCREENSHOTS.md`, commit the image files, then enable the screenshot block in `README.md`.
 
-## 7. Create the first Release
+## 7. Create the current Release
 
 After building your APK, open the repository on GitHub:
 
@@ -89,16 +89,16 @@ Releases → Draft a new release
 Suggested tag:
 
 ```text
-v1.19.1
+v1.22.6
 ```
 
 Suggested title:
 
 ```text
-To-Do v1.19.1
+To-Do v1.22.6
 ```
 
-Paste the content of `RELEASE_NOTES_v1.19.1.md`, then attach the APK file.
+Paste the content of `RELEASE_NOTES_v1.22.6.md`, then attach `To-Do-v1.22.6.apk` and its `.sha256` file.
 
 ## Important security check
 

@@ -1946,7 +1946,18 @@ body {
   z-index: 200;
   background: #f5ecd8;
   display: flex; flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden;
+  --note-ime-space: 0px;
+  --note-viewport-offset: 0px;
+  padding-bottom: var(--note-ime-space);
+  overscroll-behavior: none;
 }
+html.note-editor-open, body.note-editor-open {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
+html.note-editor-open #fab, body.note-editor-open #fab { display:none !important; }
 .note-editor__header {
   position: relative;
   display: flex;
@@ -2043,7 +2054,8 @@ body {
 }
 .note-editor__search::placeholder { color: var(--text-tertiary); }
 .note-editor__body {
-  flex: 1;
+  flex: 1 1 auto;
+  min-height: 0;
   padding: 4px 16px 40vh;
   overflow-y: auto;
   font-size: 15px;
@@ -2053,7 +2065,9 @@ body {
   outline: none;
   -webkit-user-select: text;
   user-select: text;
-  min-height: 80px;
+  overscroll-behavior-y: contain;
+  scroll-padding-bottom: 72px;
+  -webkit-overflow-scrolling: touch;
 }
 .note-editor__body:empty::before {
   content: '开始写笔记…';
@@ -2091,7 +2105,7 @@ body {
 .note-image-grid--single .note-image-item { max-height:380px; }
 .note-image-item img {
   display:block; width:100%; height:100%; max-height:300px; object-fit:cover;
-  background:#efe9df; cursor:pointer;
+  background:#efe9df; cursor:pointer; touch-action:pan-y;
 }
 .note-image-grid--single .note-image-item img { height:auto; max-height:380px; object-fit:contain; }
 .note-image-remove {
@@ -2103,12 +2117,16 @@ body {
 }
 .note-image-picker-marker { display:inline-block; width:2px; height:1em; vertical-align:middle; }
 .note-image-preview {
-  position:fixed; inset:0; z-index:16020; display:none; align-items:center; justify-content:center;
+  position:fixed; inset:0; z-index:16020; display:none; align-items:center; justify-content:center; overflow:hidden;
   padding:24px 18px max(24px,env(safe-area-inset-bottom)); background:rgba(38,34,31,.72);
   backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); opacity:0; transition:opacity 180ms ease-out;
 }
 .note-image-preview.active { display:flex; opacity:1; }
-.note-image-preview img { max-width:100%; max-height:82vh; object-fit:contain; border-radius:18px; box-shadow:0 18px 60px rgba(0,0,0,.28); }
+.note-image-preview img {
+  max-width:100%; max-height:82vh; object-fit:contain; border-radius:18px; box-shadow:0 18px 60px rgba(0,0,0,.28);
+  transform:translate3d(0,0,0) scale(1); transform-origin:center center; will-change:transform;
+  touch-action:none; user-select:none; -webkit-user-select:none; -webkit-user-drag:none;
+}
 .note-image-preview__close {
   position:absolute; top:max(20px,env(safe-area-inset-top)); right:18px; width:38px; height:38px; border:0;
   border-radius:50%; background:rgba(255,255,255,.88); color:#62584f; font-size:18px;
@@ -2116,27 +2134,39 @@ body {
 }
 .note-add-image-btn { color:#3b9e8a!important; }
 .note-editor__children {
+  order: 3;
+  flex: 0 1 auto;
   border-top: 1px solid var(--glass-border);
   background: rgba(255,255,255,0.4);
-  max-height: 40vh;
+  max-height: 32vh;
   overflow-y: auto;
+  padding-bottom: 0;
 }
 
-/* ===== Format Bar (inside editor flow, at bottom) ===== */
+/* ===== Format Bar: in editor flow; editor viewport itself shrinks above the IME ===== */
 .note-format-bar {
-  flex-shrink: 0;
+  order: 4;
+  position: static;
+  flex: 0 0 auto;
+  z-index: 12;
   display: flex;
   align-items: center;
   justify-content: flex-start;
   gap: 2px;
-  padding: 6px 8px;
-  background: rgba(250, 248, 245, 0.97);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  padding: 6px 8px max(6px, env(safe-area-inset-bottom));
+  background: rgba(250, 248, 245, 0.975);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border-top: 1px solid rgba(0,0,0,0.08);
+  box-shadow: 0 -4px 18px rgba(84,70,58,.06);
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  transform: translate3d(0, var(--note-viewport-offset), 0);
+  will-change: transform;
 }
+.note-editor__header { order: 1; flex: 0 0 auto; }
+.note-editor__body { order: 2; }
+.note-editor.note-ime-visible .note-format-bar { padding-bottom: 6px; }
 .note-format-bar button {
   flex-shrink: 0;
   min-width: 32px; height: 32px;
@@ -2168,6 +2198,132 @@ body {
   flex-shrink: 0;
   margin: 0 4px;
 }
+
+.note-format-bar .note-toolbar-icon-btn { color:#3b9e8a; }
+.note-format-bar .note-toolbar-icon-btn svg {
+  width:20px; height:20px; display:block; fill:none; stroke:currentColor; stroke-width:1.8;
+  stroke-linecap:round; stroke-linejoin:round; pointer-events:none;
+}
+.note-add-file-btn { color:#6f87bb!important; }
+
+/* ===== Note inline file attachments ===== */
+.note-file-stack {
+  display:flex; flex-direction:column; gap:8px; margin:10px 0 12px; width:100%;
+  user-select:none; -webkit-user-select:none;
+}
+.note-file-card {
+  display:flex; align-items:center; gap:11px; width:100%; min-width:0; padding:11px 12px;
+  border-radius:16px; background:rgba(255,255,255,.58); border:1px solid rgba(255,255,255,.78);
+  box-shadow:0 5px 18px rgba(91,76,61,.08); cursor:pointer;
+  transition:transform .14s ease, box-shadow .14s ease, background .14s ease;
+  touch-action:pan-y;
+}
+.note-file-card:active { transform:scale(.985); background:rgba(255,255,255,.76); }
+.note-file-card__badge {
+  flex:0 0 46px; width:46px; height:46px; border-radius:13px; display:flex; align-items:center; justify-content:center;
+  font-size:11px; font-weight:850; letter-spacing:.2px; color:#fff; background:linear-gradient(135deg,#72cfc0,#5793e7);
+  box-shadow:0 5px 14px rgba(72,126,167,.16);
+}
+.note-file-card__badge.pdf { background:linear-gradient(135deg,#ff8b83,#e95d67); }
+.note-file-card__badge.md,.note-file-card__badge.txt { background:linear-gradient(135deg,#69c9ac,#3aa891); }
+.note-file-card__badge.doc,.note-file-card__badge.docx { background:linear-gradient(135deg,#71aaf5,#4b75dc); }
+.note-file-card__badge.xls,.note-file-card__badge.xlsx,.note-file-card__badge.csv { background:linear-gradient(135deg,#67c58d,#379d68); }
+.note-file-card__badge.ppt,.note-file-card__badge.pptx { background:linear-gradient(135deg,#f7a06e,#e66f48); }
+.note-file-card__badge.zip,.note-file-card__badge.rar,.note-file-card__badge.sevenzip { background:linear-gradient(135deg,#b59ae8,#876ccc); }
+.note-file-card__main { flex:1; min-width:0; }
+.note-file-card__name { font-size:13.5px; font-weight:720; color:#403832; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.note-file-card__meta { margin-top:3px; font-size:10.5px; color:#9a8e83; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.note-file-card__remove, .note-file-card__more {
+  flex:0 0 40px; width:40px; height:40px; border:0; border-radius:12px;
+  display:flex; align-items:center; justify-content:center;
+}
+.note-file-card__remove { background:rgba(238,111,108,.09); color:#d77673; font-size:14px; }
+.note-file-card__more { background:transparent; color:#817970; padding:0; align-self:center; }
+.note-file-card__more svg { width:22px; height:22px; display:block; fill:currentColor; pointer-events:none; }
+.note-file-picker-marker { display:inline-block; width:2px; height:1em; vertical-align:middle; }
+
+.note-file-actions-overlay {
+  position:fixed; inset:0; z-index:16030; display:none; align-items:flex-end; justify-content:center;
+  padding:0 12px max(12px,env(safe-area-inset-bottom)); background:rgba(48,43,39,.08);
+  opacity:0; transition:opacity 180ms ease-out;
+}
+.note-file-actions-overlay.active { display:flex; opacity:1; }
+.note-file-actions-sheet {
+  width:min(100%,440px); border-radius:26px; padding:10px 14px 14px;
+  background:linear-gradient(180deg,rgba(255,255,253,.98),rgba(251,247,243,.98));
+  border:1px solid rgba(255,255,255,.82); box-shadow:0 24px 70px rgba(74,57,45,.24);
+  transform:translate3d(0,18px,0); opacity:0; transition:transform 200ms cubic-bezier(.22,.82,.28,1),opacity 170ms ease-out;
+}
+.note-file-actions-overlay.active .note-file-actions-sheet { transform:translate3d(0,0,0); opacity:1; }
+.note-file-actions-handle { width:42px; height:4px; border-radius:999px; background:#ded8d1; margin:1px auto 12px; }
+.note-file-actions-head { display:flex; align-items:center; gap:11px; padding:3px 4px 13px; }
+.note-file-actions-head__icon { width:44px; height:44px; border-radius:13px; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg,#e7f7f2,#e9effd); color:#547ca7; }
+.note-file-actions-head__icon svg { width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.note-file-actions-copy { flex:1; min-width:0; }
+.note-file-actions-name { font-size:14px; font-weight:800; color:#3f3731; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.note-file-actions-meta { margin-top:3px; font-size:11px; color:#9a8e83; }
+.note-file-actions-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+.note-file-action {
+  border:0; border-radius:17px; padding:12px 5px 10px; background:rgba(247,244,240,.92); color:#554b43;
+  display:flex; flex-direction:column; align-items:center; gap:7px; font-size:11px; font-weight:700; min-width:0;
+}
+.note-file-action:active { transform:scale(.96); }
+.note-file-action__icon { width:36px; height:36px; border-radius:12px; background:#fff; display:flex; align-items:center; justify-content:center; box-shadow:0 3px 10px rgba(76,62,52,.07); font-size:17px; }
+.note-file-action__icon svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.note-file-action.wechat .note-file-action__icon { color:#21a763; }
+.note-file-action.qq .note-file-action__icon { color:#4f78dc; }
+.note-file-actions-cancel { width:100%; margin-top:10px; padding:12px; border:0; border-radius:15px; background:rgba(242,238,233,.9); color:#81756b; font-size:13px; font-weight:700; }
+
+
+/* ===== Note attachment import sheet ===== */
+.note-file-import-overlay {
+  position:fixed; inset:0; z-index:16035; display:none; align-items:flex-end; justify-content:center;
+  padding:0 12px max(12px,env(safe-area-inset-bottom)); background:rgba(47,42,38,.06);
+  opacity:0; transition:opacity 170ms ease-out;
+}
+.note-file-import-overlay.active { display:flex; opacity:1; }
+.note-file-import-sheet {
+  width:min(100%,440px); max-height:min(72vh,580px); overflow:hidden; border-radius:25px;
+  padding:9px 13px 13px; background:linear-gradient(180deg,rgba(255,255,253,.995),rgba(250,248,245,.995));
+  border:1px solid rgba(255,255,255,.84); box-shadow:0 24px 72px rgba(74,57,45,.24);
+  transform:translate3d(0,20px,0); opacity:0;
+  transition:transform 200ms cubic-bezier(.22,.82,.28,1),opacity 170ms ease-out;
+}
+.note-file-import-overlay.active .note-file-import-sheet { transform:translate3d(0,0,0); opacity:1; }
+.note-file-import-handle { width:42px; height:4px; border-radius:999px; background:#ddd7d0; margin:1px auto 12px; }
+.note-file-import-title { font-size:17px; font-weight:850; color:#3f3731; padding:2px 3px 10px; }
+.note-file-import-sub { display:none; }
+.note-file-import-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; }
+.note-file-import-option {
+  border:0; min-height:82px; border-radius:18px; background:rgba(247,244,240,.94); color:#554b43;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px; padding:9px 4px; text-align:center;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.74); transition:transform .12s ease, background .12s ease;
+}
+.note-file-import-option:active { transform:scale(.975); background:rgba(241,238,233,.98); }
+.note-file-import-option__icon { width:42px; height:42px; flex:0 0 42px; border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:21px; background:#fff; box-shadow:0 4px 13px rgba(80,64,52,.07); }
+.note-file-import-option__icon svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+.note-file-import-option.wechat .note-file-import-option__icon { color:#21a763; background:#eefaf4; }
+.note-file-import-option.qq .note-file-import-option__icon { color:#4f78dc; background:#eff3ff; }
+.note-file-import-option.phone .note-file-import-option__icon { color:#a67842; background:#fff8ec; }
+.note-file-import-option.recent .note-file-import-option__icon { color:#7f72c5; background:#f5f1ff; }
+.note-file-import-option__copy { min-width:0; }
+.note-file-import-option__name { display:block; font-size:12px; font-weight:820; color:#494039; white-space:nowrap; }
+.note-file-import-option__hint { display:none; }
+.note-file-import-cancel { width:100%; margin-top:10px; padding:12px; border:0; border-radius:15px; background:rgba(242,238,233,.92); color:#81756b; font-size:13px; font-weight:750; }
+.note-file-recent-panel { display:none; max-height:54vh; overflow-y:auto; padding:2px 0 0; }
+.note-file-recent-panel.active { display:block; }
+.note-file-recent-head { display:flex; align-items:center; justify-content:space-between; padding:2px 2px 9px; }
+.note-file-recent-back { border:0; background:transparent; color:#5f8ba8; font-size:13px; font-weight:750; padding:6px; }
+.note-file-recent-title { font-size:15px; font-weight:850; color:#3f3731; }
+.note-file-recent-list { display:flex; flex-direction:column; gap:7px; }
+.note-file-recent-item { display:flex; align-items:center; gap:10px; padding:10px 11px; border-radius:16px; background:rgba(247,244,240,.92); border:1px solid rgba(255,255,255,.8); }
+.note-file-recent-item input { width:18px; height:18px; accent-color:#2ec4b6; }
+.note-file-recent-badge { width:38px; height:38px; flex:0 0 38px; border-radius:11px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:10px; font-weight:850; background:linear-gradient(135deg,#72cfc0,#5793e7); }
+.note-file-recent-copy { flex:1; min-width:0; }
+.note-file-recent-name { font-size:12.5px; font-weight:760; color:#493f38; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.note-file-recent-meta { margin-top:2px; font-size:10px; color:#9a8e83; }
+.note-file-recent-add { width:100%; margin-top:9px; padding:12px; border:0; border-radius:15px; background:linear-gradient(135deg,#29c7aa,#28add3); color:#fff; font-size:13px; font-weight:820; box-shadow:0 6px 18px rgba(40,176,190,.16); }
+.note-file-recent-empty { padding:24px 12px; text-align:center; color:#a0958c; font-size:12px; line-height:1.7; }
 
 /* ===== Color Picker Popup ===== */
 .color-picker-pop {
@@ -2405,7 +2561,12 @@ body {
       <span class="note-format-bar__sep"></span>
       <button onclick="insertCheckbox()" title="待办勾选">☐</button>
       <button onclick="moreAddChild()" title="添加子笔记">+子</button>
-      <button class="note-add-image-btn" id="noteAddImageBtn" title="添加图片" aria-label="添加图片">▧+</button>
+      <button class="note-toolbar-icon-btn note-add-image-btn" id="noteAddImageBtn" title="添加图片" aria-label="添加图片">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2.5"></rect><circle cx="8.2" cy="9" r="1.4"></circle><path d="M5.5 17l4.1-4.2 3.1 3.1 2.1-2.1 3.7 3.2"></path></svg>
+      </button>
+      <button class="note-toolbar-icon-btn note-add-file-btn" id="noteAddFileBtn" title="添加文件" aria-label="添加文件">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8l4 4V20a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"></path><path d="M14 3.5V8h4"></path><path d="M8.5 14h7"></path><path d="M12 10.5v7"></path></svg>
+      </button>
     </div>
     <div class="note-editor__children" id="noteEditorChildren">
       <div class="note-editor__children-header">子笔记</div>
@@ -2416,6 +2577,44 @@ body {
   <div class="note-image-preview" id="noteImagePreview" aria-hidden="true">
     <button class="note-image-preview__close" id="noteImagePreviewClose" aria-label="关闭图片预览">✕</button>
     <img id="noteImagePreviewImg" alt="笔记图片预览">
+  </div>
+
+  <div class="note-file-import-overlay" id="noteFileImportOverlay" aria-hidden="true">
+    <section class="note-file-import-sheet" role="dialog" aria-modal="true" aria-label="添加附件">
+      <div class="note-file-import-handle"></div>
+      <div id="noteFileImportHome">
+        <div class="note-file-import-title">添加附件</div>
+        <div class="note-file-import-grid">
+          <button class="note-file-import-option wechat" data-note-import="wechat"><span class="note-file-import-option__icon"><svg viewBox="0 0 24 24"><path d="M8.5 6.5c-3 0-5.5 1.9-5.5 4.3 0 1.4.8 2.7 2.1 3.5l-.5 2 2.1-1.1c.6.2 1.2.3 1.8.3 3 0 5.5-1.9 5.5-4.4S11.5 6.5 8.5 6.5z"></path><path d="M13.5 9.5c4 0 7 2.2 7 5 0 1.5-.8 2.8-2.2 3.7l.4 1.8-2-1c-.9.3-1.7.4-2.6.4-1.4 0-2.7-.3-3.7-.9"></path></svg></span><span class="note-file-import-option__copy"><span class="note-file-import-option__name">微信</span><span class="note-file-import-option__hint">去微信找到聊天文件，再分享回 To-Do</span></span></button>
+          <button class="note-file-import-option qq" data-note-import="qq"><span class="note-file-import-option__icon"><svg viewBox="0 0 24 24"><path d="M7 15c-1.1-1.2-1.7-2.8-1.7-4.5C5.3 6.9 8.1 4 12 4s6.7 2.9 6.7 6.5c0 1.8-.6 3.4-1.7 4.5"></path><path d="M6 18.5c1.4 1.2 3.5 2 6 2s4.6-.8 6-2"></path><path d="M9 9.5h.01M15 9.5h.01"></path></svg></span><span class="note-file-import-option__copy"><span class="note-file-import-option__name">QQ</span><span class="note-file-import-option__hint">去 QQ 找到聊天文件，再分享回 To-Do</span></span></button>
+          <button class="note-file-import-option phone" data-note-import="phone"><span class="note-file-import-option__icon"><svg viewBox="0 0 24 24"><path d="M3.5 7.5h6l1.8 2H20a1 1 0 0 1 1 1v7.5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8.5a1 1 0 0 1 .5-1z"></path></svg></span><span class="note-file-import-option__copy"><span class="note-file-import-option__name">文件</span><span class="note-file-import-option__hint">打开系统文件选择器，可多选</span></span></button>
+          <button class="note-file-import-option recent" data-note-import="recent"><span class="note-file-import-option__icon"><svg viewBox="0 0 24 24"><path d="M4.5 12a7.5 7.5 0 1 0 2-5.1"></path><path d="M4.5 5.5v4h4"></path></svg></span><span class="note-file-import-option__copy"><span class="note-file-import-option__name">最近</span><span class="note-file-import-option__hint">复用以前已经放进 Note 的文件</span></span></button>
+        </div>
+        <button class="note-file-import-cancel" id="noteFileImportCancel">取消</button>
+      </div>
+      <div class="note-file-recent-panel" id="noteFileRecentPanel">
+        <div class="note-file-recent-head"><button class="note-file-recent-back" id="noteFileRecentBack">← 返回</button><div class="note-file-recent-title">最近</div><span style="width:46px"></span></div>
+        <div class="note-file-recent-list" id="noteFileRecentList"></div>
+        <button class="note-file-recent-add" id="noteFileRecentAdd">添加所选文件</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="note-file-actions-overlay" id="noteFileActionsOverlay" aria-hidden="true">
+    <section class="note-file-actions-sheet" role="dialog" aria-modal="true" aria-label="文件操作">
+      <div class="note-file-actions-handle"></div>
+      <div class="note-file-actions-head">
+        <div class="note-file-actions-head__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8l4 4V20a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z"></path><path d="M14 3.5V8h4"></path></svg></div>
+        <div class="note-file-actions-copy"><div class="note-file-actions-name" id="noteFileActionsName">附件</div><div class="note-file-actions-meta" id="noteFileActionsMeta"></div></div>
+      </div>
+      <div class="note-file-actions-grid">
+        <button class="note-file-action wechat" data-note-file-action="wechat"><span class="note-file-action__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8.5 6.5c-3 0-5.5 1.9-5.5 4.3 0 1.4.8 2.7 2.1 3.5l-.5 2 2.1-1.1c.6.2 1.2.3 1.8.3 3 0 5.5-1.9 5.5-4.4S11.5 6.5 8.5 6.5z"></path><path d="M13.5 9.5c4 0 7 2.2 7 5 0 1.5-.8 2.8-2.2 3.7l.4 1.8-2-1c-.9.3-1.7.4-2.6.4-1.4 0-2.7-.3-3.7-.9"></path></svg></span><span>微信发送</span></button>
+        <button class="note-file-action qq" data-note-file-action="qq"><span class="note-file-action__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 18.5c1.4 1.2 3.5 2 6 2s4.6-.8 6-2"></path><path d="M7 15c-1.1-1.2-1.7-2.8-1.7-4.5C5.3 6.9 8.1 4 12 4s6.7 2.9 6.7 6.5c0 1.8-.6 3.4-1.7 4.5"></path><path d="M9 9.5h.01M15 9.5h.01"></path></svg></span><span>QQ发送</span></button>
+        <button class="note-file-action" data-note-file-action="more"><span class="note-file-action__icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5h16v13H4z"></path><path d="M8 10h8M8 14h5"></path></svg></span><span>更多应用</span></button>
+        <button class="note-file-action" data-note-file-action="delete" style="color:#cc6d69"><span class="note-file-action__icon" style="color:#d8706b"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16"></path><path d="M9 7V4.5h6V7"></path><path d="M7 7l1 13h8l1-13"></path></svg></span><span>删除附件</span></button>
+      </div>
+      <button class="note-file-actions-cancel" id="noteFileActionsCancel">取消</button>
+    </section>
   </div>
 
   <!-- Folder Sidebar -->
@@ -3372,6 +3571,21 @@ function deleteNativeNoteImagesFromContent(content) {
   });
 }
 
+function extractNoteFileNames(content) {
+  var names = [];
+  var re = /data-note-file-name=["']([A-Za-z0-9._-]{1,180})["']/g;
+  var match;
+  while ((match = re.exec(String(content || ''))) !== null) names.push(match[1]);
+  return names;
+}
+
+function deleteNativeNoteFilesFromContent(content) {
+  if (typeof AndroidBridge === 'undefined' || !AndroidBridge.deleteNoteFile) return;
+  extractNoteFileNames(content).forEach(function(name) {
+    try { AndroidBridge.deleteNoteFile(name); } catch(e) {}
+  });
+}
+
 function deleteNote(id) {
   var note = getNoteById(id);
   if (!note) return;
@@ -3391,6 +3605,7 @@ function deleteNote(id) {
       if (notes[j].parentId === toDelete[di]) {
         toDelete.push(notes[j].id);
         deleteNativeNoteImagesFromContent(notes[j].content || '');
+        deleteNativeNoteFilesFromContent(notes[j].content || '');
         notes.splice(j, 1);
       }
     }
@@ -3400,6 +3615,7 @@ function deleteNote(id) {
   for (var k = notes.length - 1; k >= 0; k--) {
     if (notes[k].id === id) {
       deleteNativeNoteImagesFromContent(notes[k].content || '');
+      deleteNativeNoteFilesFromContent(notes[k].content || '');
       notes.splice(k, 1); break;
     }
   }
@@ -3508,10 +3724,20 @@ function springBackModeDrawer() {
 
 function switchMode(mode, motion) {
   if (mode === currentMode || modeSwitchAnimating) return;
+  const nestedNoteWasOpen = mode === 'todo' && currentMode === 'notes' && isNoteEditorVisible();
+  if (nestedNoteWasOpen) suspendNoteEditorForModeSwitch();
   const appEl = document.querySelector('.app');
-  if (!appEl) { applyMode(mode); return; }
+  if (!appEl) {
+    applyMode(mode);
+    if (mode === 'notes') restoreSuspendedNoteEditorIfNeeded(false);
+    return;
+  }
   const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (reduceMotion) { clearModeDrawerPreview(); applyMode(mode); return; }
+  if (reduceMotion) {
+    clearModeDrawerPreview(); applyMode(mode);
+    if (mode === 'notes') restoreSuspendedNoteEditorIfNeeded(false);
+    return;
+  }
 
   const direction = motion === 'left' ? -1 : motion === 'right' ? 1 : (mode === 'notes' ? 1 : -1);
   const width = appEl.getBoundingClientRect().width || window.innerWidth;
@@ -3533,6 +3759,7 @@ function switchMode(mode, motion) {
       setTimeout(() => {
         clearModeDrawerPreview();
         modeSwitchAnimating = false;
+        if (mode === 'notes') restoreSuspendedNoteEditorIfNeeded(true);
       }, 140);
     }));
   }, 170);
@@ -3713,19 +3940,113 @@ function deleteNoteFromList(id) {
   });
 }
 
-function openNoteEditor(id) {
+var suspendedNoteWorkspace = null;
+function isNoteEditorVisible() {
+  var editor = document.getElementById('noteEditor');
+  return !!(editor && editor.style.display !== 'none');
+}
+function captureNoteWorkspaceState() {
+  var bodyEl = document.getElementById('noteEditorBody');
+  var titleInput = document.getElementById('noteEditorTitle');
+  var searchInput = document.getElementById('noteEditorSearch');
+  var state = {
+    noteId: currentNoteId,
+    bodyScrollTop: bodyEl ? bodyEl.scrollTop : 0,
+    searchValue: searchInput ? searchInput.value : '',
+    titleSelectionStart: titleInput && typeof titleInput.selectionStart === 'number' ? titleInput.selectionStart : null,
+    titleSelectionEnd: titleInput && typeof titleInput.selectionEnd === 'number' ? titleInput.selectionEnd : null,
+    bodyHadFocus: bodyEl && document.activeElement === bodyEl
+  };
+  rememberNoteSelection();
+  return state;
+}
+function suspendNoteEditorForModeSwitch() {
+  if (!isNoteEditorVisible() || !currentNoteId) return false;
+  saveCurrentNote();
+  suspendedNoteWorkspace = captureNoteWorkspaceState();
+  var editor = document.getElementById('noteEditor');
+  var bodyEl = document.getElementById('noteEditorBody');
+  var titleEl = document.getElementById('noteEditorTitle');
+  if (bodyEl) bodyEl.blur();
+  if (titleEl) titleEl.blur();
+  if (editor) {
+    editor.style.display = 'none';
+    editor.style.transform = '';
+    editor.style.transition = '';
+    editor.style.opacity = '';
+    editor.style.setProperty('--note-ime-space','0px');
+    editor.style.setProperty('--note-viewport-offset','0px');
+    editor.classList.remove('note-ime-visible');
+  }
+  noteImeSpacePx = 0;
+  noteImeBaseHeight = 0;
+  noteNativeImeKnown = false;
+  noteNativeImeSpacePx = 0;
+  noteVisualImeSpacePx = 0;
+  clearTimeout(noteCaretRevealTimer);
+  if (noteCaretRevealRaf) cancelAnimationFrame(noteCaretRevealRaf);
+  noteCaretRevealRaf = 0;
+  document.documentElement.classList.remove('note-editor-open');
+  document.body.classList.remove('note-editor-open');
+  return true;
+}
+function restoreSuspendedNoteEditorIfNeeded(animateIn) {
+  if (currentMode !== 'notes' || !suspendedNoteWorkspace || !suspendedNoteWorkspace.noteId) return false;
+  if (currentNoteId !== suspendedNoteWorkspace.noteId) return false;
+  var editor = document.getElementById('noteEditor');
+  var bodyEl = document.getElementById('noteEditorBody');
+  var searchInput = document.getElementById('noteEditorSearch');
+  if (!editor || !bodyEl) return false;
+  editor.style.display = '';
+  document.documentElement.classList.add('note-editor-open');
+  document.body.classList.add('note-editor-open');
+  if (searchInput) searchInput.value = suspendedNoteWorkspace.searchValue || '';
+  var targetScroll = Number(suspendedNoteWorkspace.bodyScrollTop || 0);
+  if (animateIn) {
+    editor.style.opacity = '0';
+    editor.style.transform = 'translate3d(24px,0,0)';
+    editor.style.transition = 'none';
+  }
+  requestAnimationFrame(function(){
+    bodyEl.scrollTop = targetScroll;
+    if (animateIn) requestAnimationFrame(function(){
+      editor.style.transition = 'transform 160ms cubic-bezier(.22,.82,.28,1), opacity 140ms ease-out';
+      editor.style.opacity = '1';
+      editor.style.transform = 'translate3d(0,0,0)';
+      setTimeout(function(){ editor.style.transition=''; editor.style.transform=''; editor.style.opacity=''; }, 170);
+    });
+  });
+  syncNoteImeLayout();
+  return true;
+}
+function clearSuspendedNoteWorkspace() { suspendedNoteWorkspace = null; }
+
+function openNoteEditor(id, options) {
+  options = options || {};
   var note = getNoteById(id);
   if (!note) return;
+  if (currentNoteId !== id) clearSuspendedNoteWorkspace();
   currentNoteId = id;
   var editor = document.getElementById('noteEditor');
   var titleInput = document.getElementById('noteEditorTitle');
   var bodyEl = document.getElementById('noteEditorBody');
   var childrenList = document.getElementById('noteEditorChildrenList');
   var searchInput = document.getElementById('noteEditorSearch');
-  if (editor) editor.style.display = '';
+  if (editor) {
+    editor.style.display = '';
+    editor.style.bottom = '0px';
+    editor.style.setProperty('--note-ime-space','0px');
+    editor.style.setProperty('--note-viewport-offset','0px');
+    editor.classList.remove('note-ime-visible');
+  }
+  noteImeSpacePx = 0;
+  noteImeBaseHeight = Math.max(window.innerHeight || 0, document.documentElement.clientHeight || 0);
+  document.documentElement.classList.add('note-editor-open');
+  document.body.classList.add('note-editor-open');
   if (titleInput) titleInput.value = note.title;
   if (bodyEl) bodyEl.innerHTML = note.content;
   _boldActive = false;
+  _strikeActive = false;
   _highlightActive = false;
   if (searchInput) searchInput.value = '';
 
@@ -3741,17 +4062,37 @@ function openNoteEditor(id) {
   }
 
   if (bodyEl) setTimeout(function() {
-    bodyEl.focus();
-    _boldActive = !!document.queryCommandState('bold');
+    if (options.preserveKeyboard !== false) {
+      try { bodyEl.focus({preventScroll:true}); } catch(e) { bodyEl.focus(); }
+    }
+    syncCollapsedNoteTypingFormat();
     updateToolbarState();
-  }, 100);
+    syncNoteImeLayout();
+  }, options.preserveKeyboard === false ? 0 : 100);
 }
 
 function closeNoteEditor() {
   var editor = document.getElementById('noteEditor');
-  if (editor) editor.style.display = 'none';
+  if (editor) {
+    editor.style.display = 'none';
+    editor.style.bottom = '0px';
+    editor.style.setProperty('--note-ime-space','0px');
+    editor.style.setProperty('--note-viewport-offset','0px');
+    editor.classList.remove('note-ime-visible');
+  }
+  noteImeSpacePx = 0;
+  noteImeBaseHeight = 0;
+  noteNativeImeKnown = false;
+  noteNativeImeSpacePx = 0;
+  noteVisualImeSpacePx = 0;
+  clearTimeout(noteCaretRevealTimer);
+  if (noteCaretRevealRaf) cancelAnimationFrame(noteCaretRevealRaf);
+  noteCaretRevealRaf = 0;
+  document.documentElement.classList.remove('note-editor-open');
+  document.body.classList.remove('note-editor-open');
   saveCurrentNote(); // sync save before clearing state
   currentNoteId = null;
+  clearSuspendedNoteWorkspace();
   renderNoteList();
 }
 
@@ -6484,9 +6825,15 @@ document.getElementById('modeToggle').addEventListener('click', function() {
 // Resolve title: user input, or first line of body
 function firstLineOfBody(bodyEl) {
   var clone = bodyEl.cloneNode(true);
-  clone.querySelectorAll('.note-image-grid,.note-image-picker-marker,.note-image-remove').forEach(function(el) { el.remove(); });
+  clone.querySelectorAll('.note-image-grid,.note-image-picker-marker,.note-image-remove,.note-file-stack,.note-file-picker-marker,.note-file-card__remove').forEach(function(el) { el.remove(); });
   var text = (clone.textContent || '').replace(/\n/g, ' ').trim();
-  if (!text && bodyEl.querySelector('.note-image-item')) return '图片笔记';
+  if (!text) {
+    var hasImage = !!bodyEl.querySelector('.note-image-item');
+    var hasFile = !!bodyEl.querySelector('.note-file-card');
+    if (hasImage && hasFile) return '附件笔记';
+    if (hasFile) return '文件笔记';
+    if (hasImage) return '图片笔记';
+  }
   if (text.length > 50) text = text.substring(0, 50) + '…';
   return text;
 }
@@ -6520,7 +6867,10 @@ function noteAutoSave() {
   noteSaveTimer = setTimeout(saveCurrentNote, 500);
 }
 document.getElementById('noteEditorTitle').addEventListener('input', noteAutoSave);
-document.getElementById('noteEditorBody').addEventListener('input', noteAutoSave);
+
+// Note body input: autosave only. Text input/delete/selection never mutates scrollTop.
+var noteBodyForInputGuard = document.getElementById('noteEditorBody');
+if (noteBodyForInputGuard) noteBodyForInputGuard.addEventListener('input', noteAutoSave);
 
 // Search in editor: highlight matches
 document.getElementById('noteEditorSearch').addEventListener('input', function() {
@@ -6703,10 +7053,99 @@ window.__onNoteImagesPicked = function(items) {
   showToast(items.length === 1 ? '已添加图片' : ('已添加 ' + items.length + ' 张图片'));
 };
 
+var noteImagePreviewScale = 1;
+var noteImagePreviewX = 0;
+var noteImagePreviewY = 0;
+var noteImagePreviewPinchDistance = 0;
+var noteImagePreviewPinchScale = 1;
+var noteImagePreviewPinchX = 0;
+var noteImagePreviewPinchY = 0;
+var noteImagePreviewDragStartX = 0;
+var noteImagePreviewDragStartY = 0;
+
+function noteImagePreviewClamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+function noteImagePreviewDistance(a, b) {
+  var dx = a.clientX - b.clientX, dy = a.clientY - b.clientY;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+function clampNoteImagePreviewPan() {
+  var overlay = document.getElementById('noteImagePreview');
+  var img = document.getElementById('noteImagePreviewImg');
+  if (!overlay || !img) return;
+  if (noteImagePreviewScale <= 1.001) { noteImagePreviewX = 0; noteImagePreviewY = 0; return; }
+
+  var scaledW = img.clientWidth * noteImagePreviewScale;
+  var scaledH = img.clientHeight * noteImagePreviewScale;
+  var maxX = Math.max(0, (scaledW - overlay.clientWidth) / 2);
+  var maxY = Math.max(0, (scaledH - overlay.clientHeight) / 2);
+  noteImagePreviewX = noteImagePreviewClamp(noteImagePreviewX, -maxX, maxX);
+  noteImagePreviewY = noteImagePreviewClamp(noteImagePreviewY, -maxY, maxY);
+}
+function applyNoteImagePreviewTransform() {
+  var img = document.getElementById('noteImagePreviewImg');
+  if (!img) return;
+  clampNoteImagePreviewPan();
+  img.style.transform = 'translate3d(' + noteImagePreviewX + 'px,' + noteImagePreviewY + 'px,0) scale(' + noteImagePreviewScale + ')';
+}
+function resetNoteImagePreviewTransform() {
+  noteImagePreviewScale = 1; noteImagePreviewX = 0; noteImagePreviewY = 0;
+  noteImagePreviewPinchDistance = 0; noteImagePreviewPinchScale = 1;
+  var img = document.getElementById('noteImagePreviewImg');
+  if (img) img.style.transform = 'translate3d(0,0,0) scale(1)';
+}
+function onNoteImagePreviewTouchStart(e) {
+  if (!e.touches) return;
+  if (e.touches.length >= 2) {
+    e.preventDefault();
+    noteImagePreviewPinchDistance = Math.max(1, noteImagePreviewDistance(e.touches[0], e.touches[1]));
+    noteImagePreviewPinchScale = noteImagePreviewScale;
+    noteImagePreviewPinchX = noteImagePreviewX;
+    noteImagePreviewPinchY = noteImagePreviewY;
+    return;
+  }
+  if (e.touches.length === 1 && noteImagePreviewScale > 1.001) {
+    noteImagePreviewDragStartX = e.touches[0].clientX - noteImagePreviewX;
+    noteImagePreviewDragStartY = e.touches[0].clientY - noteImagePreviewY;
+  }
+}
+function onNoteImagePreviewTouchMove(e) {
+  if (!e.touches) return;
+  if (e.touches.length >= 2) {
+    e.preventDefault();
+    var distance = Math.max(1, noteImagePreviewDistance(e.touches[0], e.touches[1]));
+    var nextScale = noteImagePreviewClamp(noteImagePreviewPinchScale * distance / Math.max(1, noteImagePreviewPinchDistance), 1, 5);
+    var factor = nextScale / Math.max(0.001, noteImagePreviewPinchScale);
+    var focusX = (e.touches[0].clientX + e.touches[1].clientX) / 2 - window.innerWidth / 2;
+    var focusY = (e.touches[0].clientY + e.touches[1].clientY) / 2 - window.innerHeight / 2;
+    noteImagePreviewX = focusX - (focusX - noteImagePreviewPinchX) * factor;
+    noteImagePreviewY = focusY - (focusY - noteImagePreviewPinchY) * factor;
+    noteImagePreviewScale = nextScale;
+    applyNoteImagePreviewTransform();
+    return;
+  }
+  if (e.touches.length === 1 && noteImagePreviewScale > 1.001) {
+    e.preventDefault();
+    noteImagePreviewX = e.touches[0].clientX - noteImagePreviewDragStartX;
+    noteImagePreviewY = e.touches[0].clientY - noteImagePreviewDragStartY;
+    applyNoteImagePreviewTransform();
+  }
+}
+function onNoteImagePreviewTouchEnd(e) {
+  if (noteImagePreviewScale <= 1.01) {
+    resetNoteImagePreviewTransform();
+    return;
+  }
+  if (e.touches && e.touches.length === 1) {
+    noteImagePreviewDragStartX = e.touches[0].clientX - noteImagePreviewX;
+    noteImagePreviewDragStartY = e.touches[0].clientY - noteImagePreviewY;
+  }
+}
+
 function openNoteImagePreview(src) {
   var overlay = document.getElementById('noteImagePreview');
   var img = document.getElementById('noteImagePreviewImg');
   if (!overlay || !img || !src) return;
+  resetNoteImagePreviewTransform();
   img.src = src;
   overlay.style.display = 'flex';
   requestAnimationFrame(function() { overlay.classList.add('active'); });
@@ -6718,12 +7157,47 @@ function closeNoteImagePreview() {
   if (!overlay) return;
   overlay.classList.remove('active');
   overlay.setAttribute('aria-hidden', 'true');
-  setTimeout(function() { if (!overlay.classList.contains('active')) { overlay.style.display = 'none'; if (img) img.removeAttribute('src'); } }, 190);
+  setTimeout(function() {
+    if (!overlay.classList.contains('active')) {
+      overlay.style.display = 'none';
+      resetNoteImagePreviewTransform();
+      if (img) img.removeAttribute('src');
+    }
+  }, 190);
 }
 
 document.getElementById('noteAddImageBtn')?.addEventListener('click', requestNoteImages);
 document.getElementById('noteImagePreviewClose')?.addEventListener('click', closeNoteImagePreview);
 document.getElementById('noteImagePreview')?.addEventListener('click', function(e) { if (e.target === e.currentTarget) closeNoteImagePreview(); });
+var noteImagePreviewImg = document.getElementById('noteImagePreviewImg');
+if (noteImagePreviewImg) {
+  noteImagePreviewImg.addEventListener('touchstart', onNoteImagePreviewTouchStart, { passive: false });
+  noteImagePreviewImg.addEventListener('touchmove', onNoteImagePreviewTouchMove, { passive: false });
+  noteImagePreviewImg.addEventListener('touchend', onNoteImagePreviewTouchEnd, { passive: false });
+  noteImagePreviewImg.addEventListener('touchcancel', onNoteImagePreviewTouchEnd, { passive: false });
+}
+
+// Inline note images are focus-safe interaction islands, just like file attachment cards.
+// Intercept pointer-down before contenteditable can focus/reopen the IME, preserve the last caret,
+// then commit the preview only on a short pointer-up so normal vertical note scrolling still works.
+var noteImagePointerTap = null;
+document.getElementById('noteEditorBody')?.addEventListener('pointerdown', function(e) {
+  var img = e.target.closest('img[data-note-image-preview]');
+  if (!img) return;
+  e.preventDefault();
+  e.stopPropagation();
+  closeNoteKeyboardForOverlay();
+  noteImagePointerTap = { img:img, x:e.clientX, y:e.clientY, pointerId:e.pointerId };
+}, true);
+document.getElementById('noteEditorBody')?.addEventListener('pointerup', function(e) {
+  var tap = noteImagePointerTap; noteImagePointerTap = null;
+  if (!tap || tap.pointerId !== e.pointerId) return;
+  if (Math.abs(e.clientX - tap.x) > 12 || Math.abs(e.clientY - tap.y) > 12) return;
+  e.preventDefault(); e.stopPropagation();
+  openNoteImagePreview(tap.img.src);
+}, true);
+document.getElementById('noteEditorBody')?.addEventListener('pointercancel', function(){ noteImagePointerTap = null; }, true);
+
 document.getElementById('noteEditorBody')?.addEventListener('click', function(e) {
   var remove = e.target.closest('[data-note-image-remove]');
   if (remove) {
@@ -6739,42 +7213,697 @@ document.getElementById('noteEditorBody')?.addEventListener('click', function(e)
     return;
   }
   var img = e.target.closest('img[data-note-image-preview]');
-  if (img) { e.preventDefault(); e.stopPropagation(); openNoteImagePreview(img.src); }
+  if (img) { e.preventDefault(); e.stopPropagation(); return; }
 });
 
+// ===== Note file picker / inline attachment cards =====
+var noteFilePendingMarkerId = '';
+var noteFileMarkerSeq = 0;
+var activeNoteFileMeta = null;
+var activeNoteFileCard = null;
 
-// ===== Keyboard-aware: shrink editor so toolbar (in flow) stays above keyboard =====
-if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', function() {
-    var diff = window.innerHeight - window.visualViewport.height;
-    var editor = document.getElementById('noteEditor');
-    if (editor && editor.style.display !== 'none') {
-      editor.style.bottom = diff > 80 ? diff + 'px' : '0px';
-    }
-  });
+function insertFileMarkerAtCaret(persistentExternal) {
+  var bodyEl = document.getElementById('noteEditorBody');
+  if (!bodyEl) return null;
+  var marker = document.createElement('span');
+  marker.id = 'noteFileMarker_' + Date.now() + '_' + (++noteFileMarkerSeq);
+  marker.className = 'note-file-picker-marker';
+  marker.setAttribute('contenteditable','false');
+  if (persistentExternal && currentNoteId) marker.setAttribute('data-note-external-import', String(currentNoteId));
+  var range = noteLastSelectionRange && bodyEl.contains(noteLastSelectionRange.commonAncestorContainer)
+    ? noteLastSelectionRange.cloneRange() : null;
+  if (!range) {
+    range = document.createRange();
+    range.selectNodeContents(bodyEl);
+    range.collapse(false);
+  }
+  range.deleteContents();
+  range.insertNode(marker);
+  return marker;
 }
 
-// ===== Highlight state =====
+function closeNoteKeyboardForOverlay() {
+  var bodyEl = document.getElementById('noteEditorBody');
+  var titleEl = document.getElementById('noteEditorTitle');
+  rememberNoteSelection();
+  if (bodyEl && document.activeElement === bodyEl) bodyEl.blur();
+  if (titleEl && document.activeElement === titleEl) titleEl.blur();
+  try { if (typeof AndroidBridge !== 'undefined' && AndroidBridge.hideNoteKeyboard) AndroidBridge.hideNoteKeyboard(); } catch(e) {}
+}
+
+function openNoteFileImportSheet() {
+  if (!currentNoteId) return showToast('请先打开一条笔记');
+  rememberNoteSelection();
+  closeNoteKeyboardForOverlay();
+  var overlay = document.getElementById('noteFileImportOverlay');
+  var home = document.getElementById('noteFileImportHome');
+  var recent = document.getElementById('noteFileRecentPanel');
+  if (!overlay) return;
+  if (home) home.style.display = '';
+  if (recent) recent.classList.remove('active');
+  overlay.style.display = 'flex';
+  requestAnimationFrame(function(){ overlay.classList.add('active'); });
+  overlay.setAttribute('aria-hidden','false');
+}
+function closeNoteFileImportSheet() {
+  var overlay = document.getElementById('noteFileImportOverlay');
+  if (!overlay) return;
+  overlay.classList.remove('active'); overlay.setAttribute('aria-hidden','true');
+  setTimeout(function(){ if (!overlay.classList.contains('active')) overlay.style.display = 'none'; }, 190);
+}
+
+function ensureNoteFileMarker(persistentExternal) {
+  var oldMarker = noteFilePendingMarkerId ? document.getElementById(noteFilePendingMarkerId) : null;
+  if (oldMarker) oldMarker.remove();
+  var marker = insertFileMarkerAtCaret(!!persistentExternal);
+  if (!marker) return null;
+  noteFilePendingMarkerId = marker.id;
+  return marker;
+}
+
+function requestNoteFiles() {
+  if (!currentNoteId) return showToast('请先打开一条笔记');
+  if (typeof AndroidBridge === 'undefined' || !AndroidBridge.pickNoteFiles) return showToast('添加文件仅支持 Android APP');
+  var marker = ensureNoteFileMarker(false);
+  if (!marker) return;
+  closeNoteFileImportSheet();
+  try {
+    var result = String(AndroidBridge.pickNoteFiles(String(currentNoteId)));
+    if (result !== 'ok') { marker.remove(); noteFilePendingMarkerId = ''; showToast('无法打开系统文件选择器'); }
+  } catch(e) {
+    marker.remove(); noteFilePendingMarkerId = ''; showToast('无法打开系统文件选择器');
+  }
+}
+
+function requestExternalNoteFiles(target) {
+  if (!currentNoteId) return showToast('请先打开一条笔记');
+  if (typeof AndroidBridge === 'undefined' || !AndroidBridge.beginExternalNoteImport) return showToast('聊天导入仅支持 Android APP');
+  var marker = ensureNoteFileMarker(true);
+  if (!marker) return;
+  saveCurrentNote(); // persist the marker so process recreation can still restore the insertion point
+  closeNoteFileImportSheet();
+  try {
+    var result = String(AndroidBridge.beginExternalNoteImport(String(currentNoteId), String(target)));
+    if (result !== 'ok') {
+      marker.remove(); noteFilePendingMarkerId = '';
+      saveCurrentNote();
+      showToast(target === 'wechat' ? '未检测到微信' : '未检测到 QQ');
+    }
+  } catch(e) {
+    marker.remove(); noteFilePendingMarkerId = '';
+    saveCurrentNote();
+    showToast('暂时无法打开对应应用');
+  }
+}
+
+function noteFileExtension(displayName, mime) {
+  var name = String(displayName || '');
+  var idx = name.lastIndexOf('.');
+  var ext = idx >= 0 ? name.slice(idx + 1).toLowerCase() : '';
+  if (!ext && mime === 'application/pdf') ext = 'pdf';
+  if (!ext && mime && mime.indexOf('text/') === 0) ext = 'txt';
+  return ext || 'file';
+}
+function noteFileBadgeLabel(ext) {
+  var e = String(ext || 'file').toUpperCase();
+  if (e === 'MARKDOWN') e = 'MD';
+  if (e === 'JPEG') e = 'JPG';
+  return e.length > 5 ? 'FILE' : e;
+}
+function noteFileBadgeClass(ext) {
+  var e = String(ext || '').toLowerCase();
+  return e === '7z' ? 'sevenzip' : e.replace(/[^a-z0-9_-]/g,'');
+}
+function noteFileSizeLabel(bytes) {
+  var n = Number(bytes);
+  if (!isFinite(n) || n < 0) return '未知大小';
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(n < 10 * 1024 ? 1 : 0) + ' KB';
+  if (n < 1024 * 1024 * 1024) return (n / 1024 / 1024).toFixed(n < 10 * 1024 * 1024 ? 1 : 0) + ' MB';
+  return (n / 1024 / 1024 / 1024).toFixed(1) + ' GB';
+}
+function createNoteFileCard(item) {
+  if (!item || !item.name) return null;
+  var displayName = String(item.displayName || item.name);
+  var mime = String(item.mime || 'application/octet-stream');
+  var size = Number(item.size || 0);
+  var ext = noteFileExtension(displayName, mime);
+  var card = document.createElement('div');
+  card.className = 'note-file-card';
+  card.setAttribute('contenteditable','false');
+  card.setAttribute('data-note-file-name', String(item.name));
+  card.setAttribute('data-note-file-display', displayName);
+  card.setAttribute('data-note-file-mime', mime);
+  card.setAttribute('data-note-file-size', String(size));
+  card.setAttribute('data-note-file-ext', ext);
+
+  var badge = document.createElement('div');
+  badge.className = 'note-file-card__badge ' + noteFileBadgeClass(ext);
+  badge.textContent = noteFileBadgeLabel(ext);
+  var main = document.createElement('div');
+  main.className = 'note-file-card__main';
+  var name = document.createElement('div');
+  name.className = 'note-file-card__name'; name.textContent = displayName;
+  var meta = document.createElement('div');
+  meta.className = 'note-file-card__meta'; meta.textContent = noteFileBadgeLabel(ext) + ' · ' + noteFileSizeLabel(size) + ' · 点击预览';
+  main.appendChild(name); main.appendChild(meta);
+  var more = document.createElement('button');
+  more.type = 'button'; more.className = 'note-file-card__more'; more.setAttribute('data-note-file-more','1'); more.setAttribute('aria-label','更多文件操作'); more.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="12" cy="19" r="1.8"></circle></svg>';
+  card.appendChild(badge); card.appendChild(main); card.appendChild(more);
+  return card;
+}
+
+function insertPickedFileItems(items, externalNoteId) {
+  items = Array.isArray(items) ? items : [];
+  var bodyEl = document.getElementById('noteEditorBody');
+  if (!bodyEl) return;
+  var marker = noteFilePendingMarkerId ? document.getElementById(noteFilePendingMarkerId) : null;
+  if (!marker && externalNoteId) marker = bodyEl.querySelector('[data-note-external-import="' + externalNoteId + '"]');
+  noteFilePendingMarkerId = '';
+  if (!items.length) { if (marker) marker.remove(); saveCurrentNote(); return; }
+  var stack = document.createElement('div');
+  stack.className = 'note-file-stack'; stack.setAttribute('contenteditable','false');
+  items.forEach(function(item) { var card = createNoteFileCard(item); if (card) stack.appendChild(card); });
+  if (!stack.children.length) { if (marker) marker.remove(); return; }
+  var spacer = document.createElement('div'); spacer.innerHTML = '<br>';
+  if (marker && marker.parentNode) {
+    marker.parentNode.insertBefore(stack, marker);
+    marker.parentNode.insertBefore(spacer, marker);
+    marker.remove();
+  } else { bodyEl.appendChild(stack); bodyEl.appendChild(spacer); }
+  saveCurrentNote();
+  showToast(items.length === 1 ? '已添加文件' : ('已添加 ' + items.length + ' 个文件'));
+}
+window.__onNoteFilesPicked = function(items) { insertPickedFileItems(items, null); };
+window.__onExternalNoteFilesPicked = function(noteId, items) {
+  noteId = Number(noteId || 0);
+  items = Array.isArray(items) ? items : [];
+  if (noteId <= 0) noteId = Number(currentNoteId || 0);
+  if (noteId <= 0) {
+    // A system share target can be invoked even when no Note is open. Do not leave orphan files.
+    try {
+      if (typeof AndroidBridge !== 'undefined' && AndroidBridge.deleteNoteFile) {
+        items.forEach(function(item){ if (item && item.name) AndroidBridge.deleteNoteFile(String(item.name)); });
+      }
+    } catch(e) {}
+    return showToast('请先打开一条笔记，再从其他应用导入附件');
+  }
+  var finish = function() { insertPickedFileItems(items, noteId); };
+  if (currentMode !== 'notes') applyMode('notes');
+  if (currentNoteId !== noteId) {
+    var note = getNoteById(noteId);
+    if (!note) return showToast('原笔记已不存在，未导入附件');
+    openNoteEditor(noteId, { preserveKeyboard:false, restoreExternalMarker:true });
+    setTimeout(finish, 40);
+  } else finish();
+};
+window.__onExternalNoteImportCancelled = function(noteId) {
+  noteId = Number(noteId || 0);
+  var bodyEl = document.getElementById('noteEditorBody');
+  if (bodyEl && currentNoteId === noteId) {
+    var marker = bodyEl.querySelector('[data-note-external-import="' + noteId + '"]');
+    if (marker) marker.remove();
+    noteFilePendingMarkerId = '';
+    saveCurrentNote();
+  } else {
+    var note = getNoteById(noteId);
+    if (note && note.content) {
+      var host = document.createElement('div'); host.innerHTML = note.content;
+      host.querySelectorAll('[data-note-external-import="' + noteId + '"]').forEach(function(el){ el.remove(); });
+      note.content = host.innerHTML; saveNotes();
+    }
+  }
+};
+
+function noteFileCardMeta(card) {
+  if (!card) return null;
+  return {
+    name: card.getAttribute('data-note-file-name') || '',
+    displayName: card.getAttribute('data-note-file-display') || '附件',
+    mime: card.getAttribute('data-note-file-mime') || 'application/octet-stream',
+    size: Number(card.getAttribute('data-note-file-size') || 0),
+    ext: card.getAttribute('data-note-file-ext') || 'file'
+  };
+}
+function previewNoteFileCard(card) {
+  var meta = noteFileCardMeta(card);
+  if (!meta || !meta.name || typeof AndroidBridge === 'undefined') return showToast('文件不可用');
+  closeNoteKeyboardForOverlay();
+  var result = 'failed';
+  try { result = String(AndroidBridge.previewNoteFile(meta.name, meta.displayName, meta.mime)); } catch(e) { result = 'failed'; }
+  if (result === 'unavailable') showToast('没有可预览或打开此文件的应用');
+  else if (result !== 'ok') showToast('暂时无法打开这个文件');
+}
+function openNoteFileActions(card) {
+  if (!card) return;
+  closeNoteKeyboardForOverlay();
+  activeNoteFileCard = card;
+  activeNoteFileMeta = noteFileCardMeta(card);
+  var overlay = document.getElementById('noteFileActionsOverlay');
+  var nameEl = document.getElementById('noteFileActionsName');
+  var metaEl = document.getElementById('noteFileActionsMeta');
+  if (!overlay || !activeNoteFileMeta) return;
+  if (nameEl) nameEl.textContent = activeNoteFileMeta.displayName;
+  if (metaEl) metaEl.textContent = noteFileBadgeLabel(activeNoteFileMeta.ext) + ' · ' + noteFileSizeLabel(activeNoteFileMeta.size);
+  overlay.style.display = 'flex';
+  requestAnimationFrame(function(){ overlay.classList.add('active'); });
+  overlay.setAttribute('aria-hidden','false');
+}
+function closeNoteFileActions() {
+  var overlay = document.getElementById('noteFileActionsOverlay');
+  if (!overlay) return;
+  overlay.classList.remove('active'); overlay.setAttribute('aria-hidden','true');
+  setTimeout(function(){ if (!overlay.classList.contains('active')) overlay.style.display = 'none'; }, 190);
+}
+function deleteActiveNoteFileAttachment() {
+  if (!activeNoteFileMeta || !activeNoteFileCard) return;
+  var fileName = activeNoteFileMeta.name;
+  var card = activeNoteFileCard;
+  var stack = card.closest('.note-file-stack');
+  try { if (typeof AndroidBridge !== 'undefined' && AndroidBridge.deleteNoteFile) AndroidBridge.deleteNoteFile(fileName); } catch(e) {}
+  card.remove();
+  if (stack && !stack.querySelector('.note-file-card')) stack.remove();
+  activeNoteFileMeta = null; activeNoteFileCard = null;
+  closeNoteFileActions();
+  saveCurrentNote();
+  showToast('已删除附件');
+}
+function runNoteFileAction(action) {
+  if (!activeNoteFileMeta || !activeNoteFileMeta.name || typeof AndroidBridge === 'undefined') return showToast('文件不可用');
+  if (action === 'delete') return deleteActiveNoteFileAttachment();
+  var result = 'failed';
+  try {
+    if (action === 'more') result = String(AndroidBridge.openNoteFileExternally(activeNoteFileMeta.name, activeNoteFileMeta.displayName, activeNoteFileMeta.mime));
+    else result = String(AndroidBridge.shareNoteFile(activeNoteFileMeta.name, action));
+  } catch(e) { result = 'failed'; }
+  closeNoteFileActions();
+  if (result === 'unavailable') showToast(action === 'wechat' ? '未检测到可用的微信' : action === 'qq' ? '未检测到可用的 QQ' : '没有可打开此文件的专业应用');
+  else if (result !== 'ok') showToast('暂时无法处理这个文件');
+}
+
+function collectRecentNoteFiles() {
+  var found = [], seen = {};
+  var ordered = notes.slice().sort(function(a,b){ return (b.updatedAt||0) - (a.updatedAt||0); });
+  ordered.forEach(function(note) {
+    if (!note || !note.content) return;
+    var host = document.createElement('div'); host.innerHTML = note.content;
+    host.querySelectorAll('.note-file-card[data-note-file-name]').forEach(function(card) {
+      var meta = noteFileCardMeta(card);
+      if (!meta || !meta.name || seen[meta.name]) return;
+      seen[meta.name] = true; found.push(meta);
+    });
+  });
+  return found.slice(0, 20);
+}
+function showRecentNoteFiles() {
+  var home = document.getElementById('noteFileImportHome');
+  var panel = document.getElementById('noteFileRecentPanel');
+  var list = document.getElementById('noteFileRecentList');
+  if (!panel || !list) return;
+  if (home) home.style.display = 'none'; panel.classList.add('active');
+  var items = collectRecentNoteFiles();
+  if (!items.length) { list.innerHTML = '<div class="note-file-recent-empty">还没有可以复用的附件。<br>先从文件、微信或 QQ 导入一次吧。</div>'; return; }
+  list.innerHTML = items.map(function(item, idx) {
+    var ext = noteFileExtension(item.displayName,item.mime);
+    return '<label class="note-file-recent-item"><input type="checkbox" data-recent-index="' + idx + '"><span class="note-file-recent-badge">' + escapeHtml(noteFileBadgeLabel(ext)) + '</span><span class="note-file-recent-copy"><span class="note-file-recent-name">' + escapeHtml(item.displayName) + '</span><span class="note-file-recent-meta">' + escapeHtml(noteFileBadgeLabel(ext) + ' · ' + noteFileSizeLabel(item.size)) + '</span></span></label>';
+  }).join('');
+  list._recentItems = items;
+}
+function addSelectedRecentNoteFiles() {
+  var list = document.getElementById('noteFileRecentList');
+  if (!list || !list._recentItems || typeof AndroidBridge === 'undefined' || !AndroidBridge.cloneNoteFile) return;
+  var chosen = [];
+  list.querySelectorAll('input[data-recent-index]:checked').forEach(function(input) {
+    var item = list._recentItems[Number(input.getAttribute('data-recent-index'))]; if (item) chosen.push(item);
+  });
+  if (!chosen.length) return showToast('请选择至少一个文件');
+  var marker = ensureNoteFileMarker(false); if (!marker) return;
+  var cloned = [];
+  chosen.slice(0,20).forEach(function(item) {
+    try {
+      var raw = String(AndroidBridge.cloneNoteFile(item.name, String(currentNoteId), item.displayName, item.mime));
+      var obj = JSON.parse(raw); if (obj && obj.name) cloned.push(obj);
+    } catch(e) {}
+  });
+  closeNoteFileImportSheet();
+  insertPickedFileItems(cloned, null);
+}
+
+document.getElementById('noteAddFileBtn')?.addEventListener('click', openNoteFileImportSheet);
+document.getElementById('noteFileImportCancel')?.addEventListener('click', closeNoteFileImportSheet);
+document.getElementById('noteFileImportOverlay')?.addEventListener('click', function(e){ if (e.target === e.currentTarget) closeNoteFileImportSheet(); });
+document.querySelectorAll('[data-note-import]').forEach(function(btn){ btn.addEventListener('click', function(){ var type=btn.getAttribute('data-note-import'); if(type==='phone') requestNoteFiles(); else if(type==='recent') showRecentNoteFiles(); else requestExternalNoteFiles(type); }); });
+document.getElementById('noteFileRecentBack')?.addEventListener('click', function(){ var home=document.getElementById('noteFileImportHome'); var panel=document.getElementById('noteFileRecentPanel'); if(home) home.style.display=''; if(panel) panel.classList.remove('active'); });
+document.getElementById('noteFileRecentAdd')?.addEventListener('click', addSelectedRecentNoteFiles);
+document.getElementById('noteFileActionsCancel')?.addEventListener('click', closeNoteFileActions);
+document.getElementById('noteFileActionsOverlay')?.addEventListener('click', function(e){ if (e.target === e.currentTarget) closeNoteFileActions(); });
+document.querySelectorAll('[data-note-file-action]').forEach(function(btn){ btn.addEventListener('click', function(){ runNoteFileAction(btn.getAttribute('data-note-file-action')); }); });
+
+// Attachment cards are focus-safe interaction islands inside contenteditable.
+// Pointer-down only removes editor focus; the action commits on a short pointer-up so vertical scrolling still works.
+var noteFilePointerTap = null;
+document.getElementById('noteEditorBody')?.addEventListener('pointerdown', function(e) {
+  var card = e.target.closest('.note-file-card[data-note-file-name]');
+  if (!card) return;
+  // Suppress contenteditable's default focus action before it can reopen the IME.
+  // touch-action:pan-y on the card still leaves vertical note scrolling to the browser.
+  e.preventDefault();
+  e.stopPropagation();
+  closeNoteKeyboardForOverlay();
+  noteFilePointerTap = { card:card, more:!!e.target.closest('.note-file-card__more'), x:e.clientX, y:e.clientY, pointerId:e.pointerId };
+}, true);
+document.getElementById('noteEditorBody')?.addEventListener('pointerup', function(e) {
+  var tap = noteFilePointerTap; noteFilePointerTap = null;
+  if (!tap || tap.pointerId !== e.pointerId) return;
+  if (Math.abs(e.clientX - tap.x) > 12 || Math.abs(e.clientY - tap.y) > 12) return;
+  e.preventDefault(); e.stopPropagation();
+  if (tap.more) openNoteFileActions(tap.card); else previewNoteFileCard(tap.card);
+}, true);
+document.getElementById('noteEditorBody')?.addEventListener('pointercancel', function(){ noteFilePointerTap = null; }, true);
+
+// ===== Keyboard-aware Note editor =====
+// V1.22.3: keep V1.22.2's single-scroll-owner model, but make Android WindowInsets the
+// authoritative IME geometry when the native bridge is available. visualViewport remains
+// a browser/WebView fallback and only contributes the compositor offset used during viewport pan.
+// Input/delete/selection NEVER restore scrollTop. Caret reveal is triggered only by IME geometry
+// changes or an explicit pointer tap, so normal typing cannot reintroduce the old jump-to-top bug.
+var noteImeSpacePx = 0;
+var noteImeBaseHeight = 0;
+var noteNativeImeKnown = false;
+var noteNativeImeSpacePx = 0;
+var noteVisualImeSpacePx = 0;
+var noteCaretRevealTimer = 0;
+var noteCaretRevealRaf = 0;
+
+function measureVisualImeSpace() {
+  var vv = window.visualViewport;
+  if (!vv) return null;
+  var layoutHeight = Math.max(noteImeBaseHeight || 0, window.innerHeight || 0, document.documentElement.clientHeight || 0);
+  if (!noteImeBaseHeight || (vv.height >= layoutHeight - 40)) noteImeBaseHeight = Math.max(window.innerHeight || 0, document.documentElement.clientHeight || 0, vv.height || 0);
+  layoutHeight = Math.max(noteImeBaseHeight || 0, window.innerHeight || 0, document.documentElement.clientHeight || 0);
+  var diff = Math.max(0, Math.round(layoutHeight - vv.height));
+  return diff >= 80 ? diff : 0;
+}
+
+function resolveNoteImeSpace() {
+  // Android WindowInsets is the stable source on the packaged app. A WebView can expose
+  // visualViewport while still failing to resize it for the IME, so feature-existence alone
+  // must never suppress the native inset bridge.
+  return noteNativeImeKnown ? noteNativeImeSpacePx : noteVisualImeSpacePx;
+}
+
+function getNoteCaretRect(bodyEl) {
+  var sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return null;
+  var range = sel.getRangeAt(0);
+  if (!bodyEl.contains(range.commonAncestorContainer)) return null;
+  var rect = range.getBoundingClientRect();
+  if (rect && (rect.height > 0 || rect.width > 0)) return rect;
+
+  // Some Chromium builds return a zero-sized rect for a collapsed caret. Expand a cloned
+  // range by one adjacent character only for measurement; the actual selection is untouched.
+  if (range.collapsed && range.startContainer && range.startContainer.nodeType === Node.TEXT_NODE) {
+    var node = range.startContainer;
+    var offset = range.startOffset;
+    var clone = range.cloneRange();
+    try {
+      if (offset > 0) clone.setStart(node, offset - 1);
+      else if (offset < node.length) clone.setEnd(node, offset + 1);
+      var fallback = clone.getBoundingClientRect();
+      if (fallback && (fallback.height > 0 || fallback.width > 0)) return fallback;
+    } catch(e) {}
+  }
+  return rect || null;
+}
+
+function revealNoteCaretAboveIme(smooth) {
+  if (noteImeSpacePx <= 0) return;
+  var bodyEl = document.getElementById('noteEditorBody');
+  if (!bodyEl || document.activeElement !== bodyEl) return;
+  var caret = getNoteCaretRect(bodyEl);
+  if (!caret) return;
+  var box = bodyEl.getBoundingClientRect();
+  var topLimit = box.top + 14;
+  var bottomLimit = box.bottom - 18;
+  var delta = 0;
+  if (caret.bottom > bottomLimit) delta = caret.bottom - bottomLimit;
+  else if (caret.top < topLimit) delta = caret.top - topLimit;
+  if (Math.abs(delta) < 2) return;
+
+  var target = Math.max(0, bodyEl.scrollTop + delta);
+  try { bodyEl.scrollTo({ top: target, behavior: smooth ? 'smooth' : 'auto' }); }
+  catch(e) { bodyEl.scrollTop = target; }
+}
+
+function scheduleNoteCaretReveal(delay, smooth) {
+  clearTimeout(noteCaretRevealTimer);
+  if (noteCaretRevealRaf) cancelAnimationFrame(noteCaretRevealRaf);
+  noteCaretRevealTimer = setTimeout(function() {
+    noteCaretRevealRaf = requestAnimationFrame(function() {
+      noteCaretRevealRaf = requestAnimationFrame(function() {
+        noteCaretRevealRaf = 0;
+        revealNoteCaretAboveIme(!!smooth);
+      });
+    });
+  }, Math.max(0, Number(delay) || 0));
+}
+
+function applyNoteImeSpace(next) {
+  var editor = document.getElementById('noteEditor');
+  if (!editor || editor.style.display === 'none') return;
+  next = Math.max(0, Math.round(Number(next) || 0));
+  if (next < 80) next = 0;
+  var changed = Math.abs(next - noteImeSpacePx) >= 2;
+  if (changed) {
+    noteImeSpacePx = next;
+    editor.style.setProperty('--note-ime-space', next + 'px');
+    editor.classList.toggle('note-ime-visible', next > 0);
+  }
+  syncNoteViewportOffset();
+  // Reflow first, then reveal the existing caret once. This is intentionally geometry-driven,
+  // never input-driven, so long-note typing/deleting remains free of JS scroll restoration.
+  if (changed && next > 0) scheduleNoteCaretReveal(70, true);
+}
+
+function syncResolvedNoteImeSpace() {
+  applyNoteImeSpace(resolveNoteImeSpace());
+}
+
+function syncNoteViewportOffset() {
+  var editor = document.getElementById('noteEditor');
+  var vv = window.visualViewport;
+  if (!editor || editor.style.display === 'none' || !vv || noteImeSpacePx <= 0) {
+    if (editor) editor.style.setProperty('--note-viewport-offset','0px');
+    return;
+  }
+  // If Android pans the visual viewport while placing the caret, compensate only the toolbar.
+  // The note body remains the sole scroll owner.
+  var offset = Math.max(0, Math.round(vv.offsetTop || 0));
+  editor.style.setProperty('--note-viewport-offset', offset + 'px');
+}
+
+function syncNoteImeLayout() {
+  var visual = measureVisualImeSpace();
+  noteVisualImeSpacePx = visual === null ? 0 : visual;
+  syncResolvedNoteImeSpace();
+}
+
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', syncNoteImeLayout);
+  window.visualViewport.addEventListener('scroll', syncNoteViewportOffset);
+}
+window.addEventListener('resize', function() {
+  if (!window.visualViewport) syncNoteImeLayout();
+  else if (window.visualViewport.height >= (window.innerHeight || 0) - 40) { noteImeBaseHeight = 0; syncNoteImeLayout(); }
+});
+
+// Android WindowInsets are physical pixels; Web content layout uses CSS pixels.
+// V1.22 used the raw value and could therefore overshoot by devicePixelRatio. V1.22.3 keeps
+// the native source, converts it correctly, and no longer ignores it merely because visualViewport exists.
+window.__onNativeImeInset = function(insetPx, visible) {
+  noteNativeImeKnown = true;
+  var ratio = Math.max(1, Number(window.devicePixelRatio) || 1);
+  var next = visible ? ((Number(insetPx) || 0) / ratio) : 0;
+  noteNativeImeSpacePx = next >= 80 ? next : 0;
+  syncResolvedNoteImeSpace();
+};
+
+// A user tap is allowed to reveal the caret while the keyboard is already open. This runs only
+// on pointer interaction, never on input/delete/selectionchange.
+document.getElementById('noteEditorBody')?.addEventListener('pointerup', function(e) {
+  if (e.target.closest('.note-file-card[data-note-file-name]')) return;
+  if (noteImeSpacePx > 0) scheduleNoteCaretReveal(24, true);
+  // A caret move must not adopt formatting from the character it lands beside.
+  // Normalize Chromium's pending typing state to the three manual toolbar switches after selection settles.
+  setTimeout(syncCollapsedNoteTypingFormat, 0);
+});
+
+// ===== Manual inline-format state (B / S / H) =====
 var highlightColor = '#ffd93d'; // default yellow
 var highlightColors = ['#ffd93d', '#ff6b6b', '#ff8787', '#b794f6', '#2EC4B6', '#4A90D9', '#FF9F43', '#ff9ff3'];
 var EDITOR_BG_COLOR = 'rgb(245, 236, 216)'; // #f5ecd8
+var EDITOR_BG_HEX = '#f5ecd8';
 
-// Init H button state
-setTimeout(updateToolbarState, 50);
-
+// B / S / H are deliberately NOT mirrors of the caret's inherited formatting.
+// These three booleans are the single source of truth for FUTURE collapsed-caret input.
+// Moving the caret into formatted text must never flip them.
 var _highlightActive = false;
 var _boldActive = false;
+var _strikeActive = false;
+var _syncingTypingFormat = false;
+var _noteColorCache = {};
+
+// Init format-button visuals.
+setTimeout(updateToolbarState, 50);
+
+function focusNoteBodyPreserveSelection() {
+  var bodyEl = document.getElementById('noteEditorBody');
+  if (!bodyEl) return null;
+  try { bodyEl.focus({preventScroll:true}); } catch(e) { bodyEl.focus(); }
+  if (noteLastSelectionRange && bodyEl.contains(noteLastSelectionRange.commonAncestorContainer)) {
+    try {
+      var sel = window.getSelection();
+      sel.removeAllRanges(); sel.addRange(noteLastSelectionRange.cloneRange());
+    } catch(e2) {}
+  }
+  return bodyEl;
+}
+
+function getNoteEditorSelectionRange() {
+  var bodyEl = document.getElementById('noteEditorBody');
+  var sel = window.getSelection();
+  if (!bodyEl || !sel || !sel.rangeCount) return null;
+  var range = sel.getRangeAt(0);
+  if (!bodyEl.contains(range.commonAncestorContainer)) return null;
+  return range;
+}
+
+function normalizeNoteCssColor(value) {
+  value = String(value || '').trim().toLowerCase();
+  if (!value) return '';
+  if (_noteColorCache[value]) return _noteColorCache[value];
+  if (value === 'transparent') return (_noteColorCache[value] = 'transparent');
+  var probe = document.createElement('span');
+  probe.style.color = value;
+  probe.style.position = 'fixed';
+  probe.style.visibility = 'hidden';
+  document.body.appendChild(probe);
+  var normalized = String(getComputedStyle(probe).color || value).replace(/\s+/g, '').toLowerCase();
+  probe.remove();
+  _noteColorCache[value] = normalized;
+  return normalized;
+}
+
+function isNeutralNoteBackColor(value) {
+  var normalized = normalizeNoteCssColor(value);
+  if (!normalized || normalized === 'transparent' || normalized === 'rgba(0,0,0,0)') return true;
+  return normalized === normalizeNoteCssColor(EDITOR_BG_COLOR) || normalized === normalizeNoteCssColor(EDITOR_BG_HEX);
+}
+
+function isKnownNoteHighlightColor(value) {
+  var normalized = normalizeNoteCssColor(value);
+  for (var i = 0; i < highlightColors.length; i++) {
+    if (normalized === normalizeNoteCssColor(highlightColors[i])) return true;
+  }
+  return false;
+}
+
+function setCollapsedCommandState(cmd, desired) {
+  var actual = false;
+  try { actual = !!document.queryCommandState(cmd); } catch(e) {}
+  if (actual !== !!desired) document.execCommand(cmd, false, null);
+}
+
+// Synchronize Chromium's *pending* collapsed-caret format to the manual toolbar switches.
+// This does not prevent/cancel beforeinput and does not rewrite input text, preserving IME/composition/undo.
+function syncCollapsedNoteTypingFormat() {
+  if (_syncingTypingFormat) return;
+  var bodyEl = document.getElementById('noteEditorBody');
+  var range = getNoteEditorSelectionRange();
+  if (!bodyEl || !range || !range.collapsed) return;
+  _syncingTypingFormat = true;
+  try {
+    setCollapsedCommandState('bold', _boldActive);
+    setCollapsedCommandState('strikeThrough', _strikeActive);
+
+    var currentBack = '';
+    try { currentBack = document.queryCommandValue('backColor') || ''; } catch(e) {}
+    if (_highlightActive) {
+      if (normalizeNoteCssColor(currentBack) !== normalizeNoteCssColor(highlightColor)) {
+        document.execCommand('backColor', false, highlightColor);
+      }
+    } else if (isKnownNoteHighlightColor(currentBack)) {
+      // Neutralize only H-palette inheritance. Unknown/pasted background styles are left untouched.
+      document.execCommand('backColor', false, EDITOR_BG_HEX);
+    }
+  } finally {
+    _syncingTypingFormat = false;
+  }
+}
+
+function effectiveNoteBackColorForNode(node, bodyEl) {
+  var el = node && node.nodeType === 1 ? node : (node ? node.parentElement : null);
+  while (el && el !== bodyEl) {
+    var bg = '';
+    try { bg = getComputedStyle(el).backgroundColor || ''; } catch(e) {}
+    if (!isNeutralNoteBackColor(bg)) return bg;
+    el = el.parentElement;
+  }
+  return EDITOR_BG_COLOR;
+}
+
+function selectionBackColorIsActive() {
+  var bodyEl = document.getElementById('noteEditorBody');
+  var range = getNoteEditorSelectionRange();
+  if (!bodyEl || !range || range.collapsed) return false;
+  var walker = document.createTreeWalker(bodyEl, NodeFilter.SHOW_TEXT);
+  var node, sawText = false;
+  while ((node = walker.nextNode())) {
+    if (!node.nodeValue || !node.nodeValue.trim()) continue;
+    var intersects = false;
+    try { intersects = range.intersectsNode(node); } catch(e) {}
+    if (!intersects) continue;
+    sawText = true;
+    if (isNeutralNoteBackColor(effectiveNoteBackColorForNode(node, bodyEl))) return false;
+  }
+  // Fully highlighted selection -> one H tap removes it; mixed/plain selection -> one H tap highlights all.
+  return sawText;
+}
+
+function toggleManualInlineCommand(cmd) {
+  var bodyEl = focusNoteBodyPreserveSelection();
+  if (!bodyEl) return;
+  var range = getNoteEditorSelectionRange();
+  if (!range) return;
+
+  if (!range.collapsed) {
+    // Selection mode edits EXISTING text only; it must not leak into future typing switches.
+    document.execCommand(cmd, false, null);
+  } else {
+    if (cmd === 'bold') _boldActive = !_boldActive;
+    if (cmd === 'strikeThrough') _strikeActive = !_strikeActive;
+    syncCollapsedNoteTypingFormat();
+  }
+  rememberNoteSelection();
+  updateToolbarState();
+}
 
 function toggleHighlight() {
-  var bodyEl = document.getElementById('noteEditorBody');
+  var bodyEl = focusNoteBodyPreserveSelection();
   if (!bodyEl) return;
-  bodyEl.focus();
-  _highlightActive = !_highlightActive;
-  if (_highlightActive) {
-    document.execCommand('backColor', false, highlightColor);
+  var range = getNoteEditorSelectionRange();
+  if (!range) return;
+
+  if (!range.collapsed) {
+    // Existing selection: H toggles highlight on that text only.
+    var selectedIsHighlighted = selectionBackColorIsActive();
+    document.execCommand('backColor', false, selectedIsHighlighted ? EDITOR_BG_HEX : highlightColor);
   } else {
-    document.execCommand('backColor', false, '#f5ecd8');
+    // Collapsed caret: H is a persistent future-input switch controlled only by the toolbar.
+    _highlightActive = !_highlightActive;
+    syncCollapsedNoteTypingFormat();
   }
+  rememberNoteSelection();
   updateToolbarState();
 }
 
@@ -6806,9 +7935,19 @@ function showColorPicker(e) {
     var sw = ev.target.closest('.color-picker-pop__swatch');
     if (!sw) return;
     highlightColor = sw.getAttribute('data-color');
-    _highlightActive = true;
-    var bodyEl = document.getElementById('noteEditorBody');
-    if (bodyEl) { bodyEl.focus(); document.execCommand('backColor', false, highlightColor); }
+    var bodyEl = focusNoteBodyPreserveSelection();
+    var range = getNoteEditorSelectionRange();
+    if (bodyEl && range) {
+      if (!range.collapsed) {
+        // Color-picking over a selection recolors existing text only.
+        document.execCommand('backColor', false, highlightColor);
+      } else {
+        // Color-picking at a caret intentionally turns future highlight input ON in the chosen color.
+        _highlightActive = true;
+        syncCollapsedNoteTypingFormat();
+      }
+      rememberNoteSelection();
+    }
     updateToolbarState();
     pop.remove();
   });
@@ -6825,19 +7964,17 @@ function showColorPicker(e) {
 }
 
 // Format bar button clicks
+// B / S / H use the manual-state model; the remaining commands keep their established behavior.
 document.getElementById('noteFormatBar').addEventListener('click', function(e) {
   var btn = e.target.closest('button');
   if (!btn) return;
   var cmd = btn.getAttribute('data-cmd');
   if (!cmd) return; // custom handlers like onclick
-  var bodyEl = document.getElementById('noteEditorBody');
-  if (bodyEl) bodyEl.focus();
+  var bodyEl = focusNoteBodyPreserveSelection();
   if (cmd === 'hiliteColor') {
     toggleHighlight();
-  } else if (cmd === 'bold') {
-    document.execCommand('bold', false, null);
-    _boldActive = !!document.queryCommandState('bold');
-    updateToolbarState();
+  } else if (cmd === 'bold' || cmd === 'strikeThrough') {
+    toggleManualInlineCommand(cmd);
   } else if (cmd === 'indent') {
     document.execCommand('insertHTML', false, '&emsp;');
   } else if (cmd === 'outdent') {
@@ -6848,6 +7985,18 @@ document.getElementById('noteFormatBar').addEventListener('click', function(e) {
   }
   setTimeout(updateToolbarState, 10);
 });
+
+// Keep native WebView input/composition intact. We only align pending format immediately before
+// text-like insertion; the event is never prevented and no character is manually reinserted.
+var noteBodyForTypingFormat = document.getElementById('noteEditorBody');
+if (noteBodyForTypingFormat) {
+  noteBodyForTypingFormat.addEventListener('beforeinput', function(e) {
+    var inputType = String(e.inputType || '');
+    var shouldSync = !inputType || inputType === 'insertText' || inputType === 'insertCompositionText' ||
+      inputType === 'insertReplacementText' || inputType === 'insertParagraph' || inputType === 'insertLineBreak';
+    if (shouldSync) syncCollapsedNoteTypingFormat();
+  });
+}
 
 // Long-press on H button for color picker
 var hiliteBtn = document.querySelector('#noteFormatBar button[data-cmd="hiliteColor"]');
@@ -7023,7 +8172,8 @@ document.getElementById('noteFolderBtn').addEventListener('click', function() {
   });
 })();
 
-// Selection changes must never mutate the note. They only mirror the caret's real formatting state.
+// Selection changes remember the editing range only. B / S / H manual switches are never
+// imported from caret ancestry, so landing beside formatted text cannot activate future input.
 document.addEventListener('selectionchange', function() {
   var editor = document.getElementById('noteEditor');
   if (!editor || editor.style.display === 'none') return;
@@ -7032,7 +8182,6 @@ document.addEventListener('selectionchange', function() {
   var sel = window.getSelection();
   if (sel && sel.rangeCount && bodyEl.contains(sel.getRangeAt(0).commonAncestorContainer)) {
     noteLastSelectionRange = sel.getRangeAt(0).cloneRange();
-    _boldActive = !!document.queryCommandState('bold');
     updateToolbarState();
   }
 });
@@ -7080,7 +8229,11 @@ function handleBackPress() {
   el = document.getElementById('noteEditorMoreMenu');
   if (el && el.style.display !== 'none') { el.style.display = 'none'; return 'note-more'; }
 
-  // Note image preview sits above the editor.
+  // Note attachment import/actions / image preview sit above the editor.
+  el = document.getElementById('noteFileImportOverlay');
+  if (el && el.classList.contains('active')) { closeNoteFileImportSheet(); return 'note-file-import'; }
+  el = document.getElementById('noteFileActionsOverlay');
+  if (el && el.classList.contains('active')) { closeNoteFileActions(); return 'note-file-actions'; }
   el = document.getElementById('noteImagePreview');
   if (el && el.classList.contains('active')) { closeNoteImagePreview(); return 'note-image-preview'; }
 
@@ -7191,28 +8344,93 @@ window.__handleSystemBack = function() { return handleBackPress() !== 'none'; };
   headerEl.addEventListener('touchcancel', () => { swiping = false; springBackModeDrawer(); }, { passive:true });
 })();
 
+// ===== Nested Note header swipe → To-Do, while preserving the exact Note workspace =====
+(function() {
+  var header = document.querySelector('.note-editor__header');
+  var editor = document.getElementById('noteEditor');
+  if (!header || !editor) return;
+  var sx=0, sy=0, started=0, horizontal=false, tracking=false;
+  function notePreview(dx) {
+    if (dx > 0) dx *= .12; // wrong direction: elastic resistance only
+    var width = editor.getBoundingClientRect().width || window.innerWidth;
+    dx = Math.max(-width*.9, Math.min(22, dx));
+    var underlay = document.getElementById('modeDrawerUnderlay');
+    if (underlay) {
+      underlay.style.zIndex = '199';
+      underlay.classList.remove('from-right');
+      underlay.classList.add('from-left','active');
+      var label=document.getElementById('modeDrawerLabel'); if(label) label.textContent='To-Do';
+    }
+    editor.style.transition='none'; editor.style.transform='translate3d('+dx+'px,0,0)';
+  }
+  function resetPreview() {
+    editor.style.transition='transform 190ms cubic-bezier(.22,.82,.28,1)';
+    editor.style.transform='translate3d(0,0,0)';
+    setTimeout(function(){ editor.style.transition=''; editor.style.transform=''; var u=document.getElementById('modeDrawerUnderlay'); if(u){u.classList.remove('active','from-left');u.style.zIndex='';}},200);
+  }
+  function commitNestedToTodo() {
+    if (modeSwitchAnimating) return resetPreview();
+    var width=editor.getBoundingClientRect().width || window.innerWidth;
+    modeSwitchAnimating=true;
+    closeNoteKeyboardForOverlay();
+    saveCurrentNote();
+    suspendedNoteWorkspace=captureNoteWorkspaceState();
+    editor.style.transition='transform 170ms cubic-bezier(.22,.78,.25,1), opacity 140ms ease-out';
+    editor.style.transform='translate3d('+(-width-8)+'px,0,0)';
+    editor.style.opacity='.98';
+    setTimeout(function(){
+      var keep=suspendedNoteWorkspace;
+      suspendNoteEditorForModeSwitch();
+      suspendedNoteWorkspace=keep;
+      applyMode('todo');
+      editor.style.transition=''; editor.style.transform=''; editor.style.opacity='';
+      var u=document.getElementById('modeDrawerUnderlay'); if(u){u.classList.remove('active','from-left');u.style.zIndex='';}
+      modeSwitchAnimating=false;
+    },175);
+  }
+  header.addEventListener('touchstart',function(e){
+    if(currentMode!=='notes'||!isNoteEditorVisible()||modeSwitchAnimating||!e.touches.length)return;
+    sx=e.touches[0].clientX; sy=e.touches[0].clientY; started=performance.now(); horizontal=false; tracking=true;
+  },{passive:true});
+  header.addEventListener('touchmove',function(e){
+    if(!tracking||!e.touches.length)return;
+    var dx=e.touches[0].clientX-sx, dy=e.touches[0].clientY-sy;
+    if(!horizontal&&(Math.abs(dx)>7||Math.abs(dy)>7)) horizontal=Math.abs(dx)>Math.abs(dy)*1.15;
+    if(!horizontal)return;
+    e.preventDefault(); notePreview(dx);
+  },{passive:false});
+  header.addEventListener('touchend',function(e){
+    if(!tracking)return; tracking=false;
+    if(!horizontal||!e.changedTouches.length)return resetPreview();
+    var dx=e.changedTouches[0].clientX-sx, dy=Math.abs(e.changedTouches[0].clientY-sy);
+    var elapsed=Math.max(1,performance.now()-started), velocity=Math.abs(dx)/elapsed;
+    var width=editor.getBoundingClientRect().width||window.innerWidth;
+    if(dx<0&&Math.abs(dx)>dy&&(Math.abs(dx)>=width*.28||(Math.abs(dx)>48&&velocity>.55))) commitNestedToTodo(); else resetPreview();
+  },{passive:true});
+  header.addEventListener('touchcancel',function(){tracking=false;resetPreview();},{passive:true});
+})();
+
 // Toolbar button active state feedback
 function updateToolbarState() {
   var bodyEl = document.getElementById('noteEditorBody');
   if (!bodyEl || document.activeElement !== bodyEl) return;
-  var cmds = ['strikeThrough', 'insertUnorderedList', 'insertOrderedList'];
+
+  // List controls keep the established caret/selection mirroring behavior.
+  var cmds = ['insertUnorderedList', 'insertOrderedList'];
   for (var i = 0; i < cmds.length; i++) {
     var btn = document.querySelector('#noteFormatBar button[data-cmd="' + cmds[i] + '"]');
     if (!btn) continue;
-    if (document.queryCommandState(cmds[i])) {
-      btn.classList.add('toolbar-active');
-    } else {
-      btn.classList.remove('toolbar-active');
-    }
+    if (document.queryCommandState(cmds[i])) btn.classList.add('toolbar-active');
+    else btn.classList.remove('toolbar-active');
   }
-  // B button mirrors the actual caret formatting. Default text remains normal weight.
+
+  // B / S / H display only the user's explicit future-input switches.
   var boldBtn = document.querySelector('#noteFormatBar button[data-cmd="bold"]');
-  if (boldBtn) {
-    _boldActive = !!document.queryCommandState('bold');
-    if (_boldActive) { boldBtn.classList.add('toolbar-active'); }
-    else { boldBtn.classList.remove('toolbar-active'); }
-  }
-  // H button: pure manual toggle
+  if (boldBtn) boldBtn.classList.toggle('toolbar-active', !!_boldActive);
+
+  var strikeBtn = document.querySelector('#noteFormatBar button[data-cmd="strikeThrough"]');
+  if (strikeBtn) strikeBtn.classList.toggle('toolbar-active', !!_strikeActive);
+
   var hiliteBtn = document.querySelector('#noteFormatBar button[data-cmd="hiliteColor"]');
   if (hiliteBtn) {
     if (_highlightActive) {

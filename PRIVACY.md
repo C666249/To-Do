@@ -6,6 +6,7 @@ To-Do is designed as a local-first Android application.
 
 - To-Do, Note, and Daily content is stored locally by the app.
 - Note images selected through the Android system picker are copied into the app's private files directory.
+- Note file attachments selected through the system file picker or shared from another app are copied into the private `files/note_files/` directory.
 - Reminder state is stored locally so alarms and reminder banners can work in the background.
 - Android backup may include app data when device backup is enabled, subject to the device and Android account settings.
 
@@ -29,6 +30,8 @@ Review the privacy terms of any third-party AI provider before enabling the AI a
 
 The app uses the Android system photo picker rather than requesting broad access to the entire photo library.
 
+The app also uses Android's system file picker and per-file share grants instead of requesting broad access to shared storage. When you choose “Other apps,” WeChat, QQ, or another share target, Android grants only temporary read access to the selected attachment through a `content://` URI.
+
 ## Deleting data
 
-Delete content from within the app where supported. Uninstalling the app removes its private local data, subject to Android backup and restore behavior.
+Deleting an attachment or its owning Note removes the corresponding private file where supported. Uninstalling the app removes its private local data, subject to Android backup and restore behavior.

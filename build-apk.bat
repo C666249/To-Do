@@ -10,9 +10,9 @@ if errorlevel 1 (
 )
 if not exist "dist" mkdir "dist"
 for %%F in ("android\app\build\outputs\apk\debug\*.apk") do (
-  copy /Y "%%~fF" "dist\To-Do-v1.19.1.apk" >nul
+  copy /Y "%%~fF" "dist\To-Do-v1.22.6.apk" >nul
   echo.
-  echo APK: %CD%\dist\To-Do-v1.19.1.apk
+  echo APK: %CD%\dist\To-Do-v1.22.6.apk
   exit /b 0
 )
 echo Build finished but no APK was found under android\app\build\outputs\apk\debug

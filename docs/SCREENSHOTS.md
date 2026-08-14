@@ -9,6 +9,8 @@ The repository already contains a curated screenshot set for the GitHub homepage
 - `daily-main.jpg` — Daily drawer
 - `note-mode.jpg` — Note workspace
 - `note-images.jpg` — Note editor with inserted images
+- `note-file-workspace.jpg` — Note file cards for APK, Markdown, PDF, and DOCX attachments
+- `note-built-in-preview.jpg` — real-device Markdown preview in To-Do's built-in viewer
 - `daily-summary-reminder.jpg` — daily summary reminder settings
 - `daily-progress-calendar.jpg` — overall Daily history calendar
 - `daily-task-history.jpg` — history for one Daily item
